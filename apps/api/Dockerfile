@@ -1,5 +1,5 @@
 # --- build ---
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:24-jdk-alpine AS build
 WORKDIR /workspace
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
@@ -9,7 +9,7 @@ RUN ./mvnw -q -B -o package -DskipTests && \
     java -Djarmode=tools -jar target/*.jar extract --layers --launcher --destination extracted
 
 # --- runtime ---
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 WORKDIR /app
 RUN addgroup -S infrawatch && adduser -S infrawatch -G infrawatch
 COPY --from=build /workspace/extracted/dependencies/ ./
