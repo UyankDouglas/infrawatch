@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { RealtimeIndicator } from "@/components/RealtimeIndicator";
+import { NotificationsBell } from "@/features/alerts/NotificationsBell";
 import { StatusDot } from "@/components/StatusBadge";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { organizationApi, resourcesApi } from "@/services/endpoints";
@@ -163,6 +165,8 @@ export function Topbar({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }) {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        <RealtimeIndicator />
+        <NotificationsBell />
         <ThemeToggle />
         {user && (
           <DropdownMenu>

@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import com.infrawatch.common.events.DomainEvents.ResourceStatusChanged;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -28,13 +30,16 @@ public class StaleResourceDetector {
     private final ResourceStatusHistoryRepository history;
     private final MonitoringProperties properties;
     private final MonitoringMetrics metrics;
+    private final ApplicationEventPublisher events;
 
     public StaleResourceDetector(MonitoredResourceRepository resources, ResourceStatusHistoryRepository history,
-                                 MonitoringProperties properties, MonitoringMetrics metrics) {
+                                 MonitoringProperties properties, MonitoringMetrics metrics,
+                                 ApplicationEventPublisher events) {
         this.resources = resources;
         this.history = history;
         this.properties = properties;
         this.metrics = metrics;
+        this.events = events;
     }
 
     @Scheduled(fixedDelayString = "30s", initialDelayString = "20s")
@@ -55,6 +60,9 @@ public class StaleResourceDetector {
                 resource.resetCounters();
                 history.save(new ResourceStatusHistory(resource.getId(), resource.getOrganizationId(), previous,
                         ResourceStatus.UNKNOWN, "Sem verificações há mais de " + staleAfter + " s", null, now));
+                events.publishEvent(new ResourceStatusChanged(resource.getOrganizationId(), resource.getId(),
+                        resource.getName(), previous, ResourceStatus.UNKNOWN,
+                        "Sem verificações há mais de " + staleAfter + " s", now, "http_check"));
                 marked++;
             }
         }

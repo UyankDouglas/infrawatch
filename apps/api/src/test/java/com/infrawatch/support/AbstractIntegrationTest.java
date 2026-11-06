@@ -41,6 +41,13 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected MockMvc mvc;
 
+    @Autowired
+    protected org.springframework.context.ApplicationContext applicationContext;
+
+    public <T> T bean(Class<T> type) {
+        return applicationContext.getBean(type);
+    }
+
     /** Sessão autenticada + identificadores úteis. */
     public record Session(MockHttpSession http, UUID userId, UUID organizationId, String email) {}
 

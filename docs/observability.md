@@ -25,6 +25,9 @@ Além das métricas padrão (JVM, Tomcat, HikariCP, `http.server.requests`), o m
 | `infrawatch.engine.checks.inflight` | gauge | — |
 | `infrawatch.engine.status.transitions` | counter | — |
 | `infrawatch.engine.resources.stale` | counter | — |
+| `infrawatch.engine.agent.samples.accepted` / `.rejected` | counter | — |
+| `infrawatch.engine.alerts.triggered` / `.resolved` | counter | — |
+| `infrawatch.engine.realtime.events` | counter | — |
 
 ## Logs
 

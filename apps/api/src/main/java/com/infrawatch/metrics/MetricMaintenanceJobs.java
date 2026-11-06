@@ -14,7 +14,9 @@ import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import com.infrawatch.common.events.DomainEvents.ResourceStatusChanged;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -34,11 +36,14 @@ public class MetricMaintenanceJobs {
     private final ResourceStatusHistoryRepository history;
     private final AgentService agentService;
     private final MetricsProperties properties;
+    private final ApplicationEventPublisher events;
 
     public MetricMaintenanceJobs(MetricSampleRepository samples, MetricRollupRepository rollups,
                                  HealthCheckExecutionRepository executions, AgentRepository agents,
                                  MonitoredResourceRepository resources, ResourceStatusHistoryRepository history,
-                                 AgentService agentService, MetricsProperties properties) {
+                                 AgentService agentService, MetricsProperties properties,
+                                 ApplicationEventPublisher events) {
+        this.events = events;
         this.samples = samples;
         this.rollups = rollups;
         this.executions = executions;
@@ -97,5 +102,7 @@ public class MetricMaintenanceJobs {
                 ResourceStatus.UNKNOWN, "Agente \"" + agent.getName() + "\" sem amostras há mais de "
                 + agent.getIntervalSeconds() * properties.staleAfterMultiplier() + " s", null, now));
         log.warn("Recurso {} marcado como SEM DADOS: agente {} silencioso", resource.getId(), agent.getId());
+        events.publishEvent(new ResourceStatusChanged(resource.getOrganizationId(), resource.getId(), resource.getName(),
+                previous, ResourceStatus.UNKNOWN, "Agente \"" + agent.getName() + "\" sem amostras", now, "agent"));
     }
 }

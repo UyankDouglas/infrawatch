@@ -21,7 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import com.infrawatch.common.events.DomainEvents.AgentSampleReceived;
+import com.infrawatch.common.events.DomainEvents.ResourceStatusChanged;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -41,10 +44,12 @@ public class IngestService {
     private final MetricsProperties properties;
     private final Counter accepted;
     private final Counter rejected;
+    private final ApplicationEventPublisher events;
 
     public IngestService(AgentRepository agents, AgentCredentialRepository credentials, MetricSampleRepository samples,
                          MonitoredResourceRepository resources, ResourceStatusHistoryRepository history,
-                         MetricsProperties properties, MeterRegistry registry) {
+                         MetricsProperties properties, MeterRegistry registry, ApplicationEventPublisher events) {
+        this.events = events;
         this.agents = agents;
         this.credentials = credentials;
         this.samples = samples;
@@ -139,7 +144,11 @@ public class IngestService {
             history.save(new ResourceStatusHistory(resource.getId(), resource.getOrganizationId(), previous,
                     ResourceStatus.UP, "Agente \"" + agent.getName() + "\" passou a reportar métricas", null, now));
             log.info("Transição de estado: recurso={} {} -> UP (agente)", resource.getId(), previous);
+            events.publishEvent(new ResourceStatusChanged(resource.getOrganizationId(), resource.getId(), resource.getName(),
+                    previous, ResourceStatus.UP, "Agente \"" + agent.getName() + "\" passou a reportar métricas", now, "agent"));
         }
+        events.publishEvent(new AgentSampleReceived(resource.getOrganizationId(), resource.getId(), resource.getName(),
+                sample.getCpuPercent(), sample.getMemPercent(), sample.getDiskPercent(), now));
         return new IngestResponse(resource.getId(), now, agent.getIntervalSeconds(), ignored);
     }
 

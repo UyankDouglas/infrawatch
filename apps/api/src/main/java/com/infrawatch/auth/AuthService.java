@@ -1,6 +1,7 @@
 package com.infrawatch.auth;
 
 import com.infrawatch.audit.AuditService;
+import com.infrawatch.alerts.AlertService;
 import com.infrawatch.auth.AuthDtos.MeResponse;
 import com.infrawatch.auth.AuthDtos.OrganizationSummary;
 import com.infrawatch.auth.AuthDtos.RegisterRequest;
@@ -31,10 +32,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService audit;
     private final CurrentContextService context;
+    private final AlertService alerts;
 
     public AuthService(UserRepository users, OrganizationRepository organizations,
                        OrganizationMemberRepository members, PasswordEncoder passwordEncoder,
-                       AuditService audit, CurrentContextService context) {
+                       AuditService audit, CurrentContextService context, AlertService alerts) {
+        this.alerts = alerts;
         this.users = users;
         this.organizations = organizations;
         this.members = members;
@@ -54,6 +57,7 @@ public class AuthService {
         Organization organization = organizations.save(
                 new Organization(request.organizationName().trim(), uniqueSlug(request.organizationName())));
         members.save(new OrganizationMember(organization, user, MemberRole.ADMIN));
+        alerts.ensureDefaultRules(organization.getId(), user.getId());
         audit.record(organization.getId(), user.getId(), "auth.register", "user", user.getId(),
                 "Conta criada e organização \"" + organization.getName() + "\" registrada");
         return user;

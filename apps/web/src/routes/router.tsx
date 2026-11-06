@@ -9,6 +9,7 @@ import { ResourcesPage } from "@/pages/ResourcesPage";
 import { ResourceDetailPage } from "@/pages/ResourceDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { AlertsPage } from "@/pages/AlertsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -33,16 +34,7 @@ export const router = createBrowserRouter([
           { path: "/", element: <OverviewPage /> },
           { path: "/recursos", element: <ResourcesPage /> },
           { path: "/recursos/:id", element: <ResourceDetailPage /> },
-          {
-            path: "/alertas",
-            element: (
-              <PlaceholderPage
-                title="Alertas"
-                phase="Fase 3"
-                description="Regras de alerta, severidades e reconhecimento chegam na Fase 3 (tempo real e alertas)."
-              />
-            ),
-          },
+          { path: "/alertas", element: <AlertsPage /> },
           {
             path: "/incidentes",
             element: (

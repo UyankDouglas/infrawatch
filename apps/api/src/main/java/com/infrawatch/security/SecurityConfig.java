@@ -90,6 +90,7 @@ public class SecurityConfig {
                 // Actuator responde apenas na porta de gerenciamento (8081), que não é exposta publicamente.
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/v1/**").authenticated()
+                .requestMatchers("/ws", "/ws/**").authenticated()
                 .anyRequest().denyAll())
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) ->

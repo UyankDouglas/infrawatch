@@ -52,6 +52,7 @@ const overview: Overview = {
   ],
   resources: [],
   recentTransitions: [],
+  recentAlerts: [],
 };
 
 describe("OverviewPage", () => {

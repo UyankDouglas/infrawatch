@@ -36,6 +36,13 @@ Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a 
 - O agente não abre portas, não executa comandos, não lê além de `/proc/uptime`, MXBeans e `FileStore`; alerta quando a URL da API não usa TLS fora de redes locais.
 - Amostras são validadas (0–100 %, bytes ≥ 0, `usado ≤ total`) e nunca contêm conteúdo arbitrário do host.
 
+## WebSocket (Fase 3)
+
+- O handshake `/ws` passa pela cadeia do Spring Security (rota autenticada; cookie de sessão HttpOnly). `CONNECT` sem Principal é recusado.
+- `SUBSCRIBE` a `/topic/org/{id}` só é aceito se o usuário for membro da organização (consulta a `organization_members` no servidor). Filas `/user/queue/*` são resolvidas pelo próprio Principal.
+- Clientes não enviam mensagens de aplicação; `SEND` é recusado. Origens permitidas = origens CORS.
+- Eventos só são emitidos **após o commit** da transação (nunca há evento de estado não persistido) e carregam apenas dados já acessíveis pela API REST.
+
 ## Validação e erros
 
 - Bean Validation em todos os DTOs de entrada; limites de tamanho em todos os campos.

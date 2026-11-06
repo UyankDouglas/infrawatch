@@ -32,7 +32,8 @@ public final class DashboardDtos {
             Double averageResponseMs, long checksInPeriod, long failedChecksInPeriod,
             List<StatusCount> statusDistribution, List<TypeCount> resourcesByType,
             List<ResourceSummary> problematic, List<ResourceSummary> resources,
-            List<TransitionSummary> recentTransitions) {}
+            List<TransitionSummary> recentTransitions,
+            List<com.infrawatch.alerts.AlertDtos.AlertResponse> recentAlerts) {}
 
     public record AvailabilityPoint(Instant bucket, long total, long successes, Double successRate) {}
 

@@ -19,6 +19,14 @@ import type {
   Transition,
 } from "@/types/api";
 import type { AgentInfo, AgentMetrics, AgentTokenResponse } from "@/types/metrics";
+import type {
+  AlertEvent,
+  AlertRule,
+  AlertRuleInput,
+  AlertRuleOptions,
+  AlertSummary,
+  AppNotification,
+} from "@/types/alerts";
 
 export const authApi = {
   me: () => api.get<Me>("/auth/me"),
@@ -96,4 +104,37 @@ export const agentsApi = {
   updateInterval: (agentId: string, intervalSeconds: number) =>
     api.patch<AgentInfo>(`/agents/${agentId}`, { intervalSeconds }),
   revoke: (agentId: string) => api.delete<AgentInfo>(`/agents/${agentId}`),
+};
+
+export interface AlertListParams {
+  status?: string;
+  active?: boolean;
+  severity?: string;
+  metric?: string;
+  resourceId?: string;
+  page?: number;
+  size?: number;
+}
+
+export const alertsApi = {
+  list: (params: AlertListParams) =>
+    api.get<PageResponse<AlertEvent>>("/alerts", params as Record<string, string | number | boolean | undefined>),
+  get: (id: string) => api.get<AlertEvent>(`/alerts/${id}`),
+  summary: () => api.get<AlertSummary>("/alerts/summary"),
+  acknowledge: (id: string, note?: string) => api.post<AlertEvent>(`/alerts/${id}/acknowledge`, { note: note || null }),
+  resolve: (id: string, note?: string) => api.post<AlertEvent>(`/alerts/${id}/resolve`, { note: note || null }),
+  forResource: (resourceId: string) => api.get<AlertEvent[]>(`/resources/${resourceId}/alerts`),
+  rules: () => api.get<AlertRule[]>("/alert-rules"),
+  ruleOptions: () => api.get<AlertRuleOptions>("/alert-rules/options"),
+  createRule: (data: AlertRuleInput) => api.post<AlertRule>("/alert-rules", data),
+  updateRule: (id: string, data: Partial<AlertRuleInput>) => api.patch<AlertRule>(`/alert-rules/${id}`, data),
+  deleteRule: (id: string) => api.delete<void>(`/alert-rules/${id}`),
+};
+
+export const notificationsApi = {
+  list: (unreadOnly = false, page = 0, size = 20) =>
+    api.get<PageResponse<AppNotification>>("/notifications", { unreadOnly, page, size }),
+  unreadCount: () => api.get<{ unread: number }>("/notifications/unread-count"),
+  markRead: (id: string) => api.post<AppNotification>(`/notifications/${id}/read`),
+  markAllRead: () => api.post<{ updated: number }>("/notifications/read-all"),
 };

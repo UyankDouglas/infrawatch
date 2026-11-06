@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { KpiCard } from "@/features/dashboard/KpiCard";
+import { AlertStatusBadge, SeverityBadge } from "@/features/alerts/SeverityBadge";
 import { AvailabilityChart, LatencyChart, StatusDonut, TypeBars } from "@/features/dashboard/charts";
 import { usePeriod } from "@/hooks/usePeriod";
 import { dashboardApi } from "@/services/endpoints";
@@ -109,11 +110,11 @@ export function OverviewPage() {
             />
             <KpiCard
               title="Alertas ativos"
-              value={o ? o.activeAlerts : undefined}
+              value={o?.activeAlerts}
               icon={BellRing}
-              tone="info"
+              tone={o && o.activeAlerts > 0 ? "down" : "info"}
               loading={loading}
-              hint="Módulo da Fase 3"
+              hint="Abertos e reconhecidos"
             />
             <KpiCard
               title="Disponibilidade no período"
@@ -310,6 +311,50 @@ export function OverviewPage() {
               </CardContent>
             </Card>
           </section>
+
+          <Card>
+            <CardHeader className="flex-row items-start justify-between">
+              <div>
+                <CardTitle>Alertas recentes</CardTitle>
+                <CardDescription>Últimos alertas disparados nesta organização.</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/alertas">
+                  Ver alertas <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-24 w-full" />
+              ) : o && o.recentAlerts.length > 0 ? (
+                <ul className="divide-y divide-border">
+                  {o.recentAlerts.slice(0, 6).map((a) => (
+                    <li key={a.id}>
+                      <Link
+                        to={`/alertas?alerta=${a.id}`}
+                        className="-mx-1 flex flex-wrap items-center gap-2 rounded-md px-1 py-2 outline-none hover:bg-accent/40 focus-visible:bg-accent/40"
+                      >
+                        <SeverityBadge severity={a.severity} />
+                        <AlertStatusBadge status={a.status} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.title}</span>
+                        <span className="text-xs whitespace-nowrap text-muted-foreground">
+                          {formatRelative(a.triggeredAt)}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  compact
+                  icon={BellRing}
+                  title="Nenhum alerta registrado"
+                  description="Alertas aparecem aqui quando uma regra for acionada."
+                />
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="flex-row items-start justify-between">

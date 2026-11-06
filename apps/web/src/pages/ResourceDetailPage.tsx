@@ -34,6 +34,7 @@ import { ResourceLatencyChart } from "@/features/dashboard/charts";
 import { ResourceFormDialog } from "@/features/resources/ResourceFormDialog";
 import { AgentMetricsPanel } from "@/features/metrics/AgentMetricsPanel";
 import { AgentPanel } from "@/features/metrics/AgentPanel";
+import { ResourceAlerts } from "@/features/alerts/ResourceAlerts";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { usePeriod } from "@/hooks/usePeriod";
 import { ApiError } from "@/services/api";
@@ -204,6 +205,8 @@ export function ResourceDetailPage() {
           )}
         </div>
       </div>
+
+      <ResourceAlerts resourceId={r.id} />
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {r.type !== "AGENT_SERVER" && (

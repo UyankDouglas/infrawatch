@@ -19,12 +19,53 @@ Na Fase 4, os relatórios indicarão se a disponibilidade **inclui ou exclui** j
 
 O gráfico "Disponibilidade por período" da Visão Geral usa outra métrica, explicitada na legenda: **percentual de verificações bem-sucedidas por intervalo** (baseada em `health_check_executions`). As duas convivem porque respondem a perguntas diferentes (tempo em estado × taxa de sucesso das sondagens).
 
-## Alertas (Fase 3 — definições)
+## Alertas (Fase 3 — implementado)
 
-- Condições: indisponível, recuperado, latência acima do limite, CPU/RAM/disco acima do limite (apenas quando houver agente), falta de dados do agente.
-- Severidades: Informativo, Atenção, Alto, Crítico.
-- Um alerta permanece **ativo** enquanto a condição persistir; novas execuções não criam alertas duplicados. Reconhecimento e resolução são registrados com usuário e horário.
-- Histerese reaproveita a máquina de estados: alertas de disponibilidade são disparados pelas **transições**, não por verificações isoladas.
+### Regras (`alert_rules`)
+
+| Campo | Significado |
+|---|---|
+| `metric` | `STATUS_DOWN`, `STATUS_DEGRADED`, `AGENT_NO_DATA` (condições de estado) ou `LATENCY`, `CPU`, `MEMORY`, `DISK` (numéricas) — só métricas que o InfraWatch coleta |
+| `operator` / `threshold` | obrigatórios nas numéricas (`>`, `≥`, `<`, `≤`); percentuais limitados a 0–100 |
+| `occurrences` | violações **consecutivas** necessárias antes de abrir (padrão 1) |
+| `duration_seconds` | tempo mínimo desde a primeira violação (padrão 0) |
+| `severity` | Informativo, Atenção, Alto, Crítico |
+| escopo | recurso específico > grupo > toda a organização |
+| `enabled` | desativar resolve os alertas que a regra mantinha abertos |
+
+Toda organização nova recebe sete regras padrão (`DefaultAlertRules`): serviço indisponível (crítico), serviço degradado (atenção), latência > 2 s ×3 (atenção), CPU > 90 % ×3 por 60 s (alto), memória > 90 % ×3 por 60 s (alto), disco > 90 % (crítico), agente sem dados (alto).
+
+### Motor (`AlertEngine`)
+
+Consome eventos de domínio **na mesma transação** que os originou — nunca existe alerta sem o fato persistido:
+
+```mermaid
+flowchart LR
+    T[ResourceStatusChanged] --> E[AlertEngine]
+    C[CheckCompleted] --> E
+    S[AgentSampleReceived] --> E
+    E -->|abre / reavalia / resolve| AE[(alert_events)]
+    E -->|ocorrências e duração| CS[(alert_condition_states)]
+    E -->|fan-out por membro| N[(notifications)]
+    AE & N -->|após commit| WS[RealtimeBroadcaster → WebSocket]
+```
+
+- **Estado**: ao entrar em `DOWN` / `DEGRADED` / `UNKNOWN` (agente) a regra correspondente abre; ao sair, resolve com `CONDITION_CLEARED`.
+- **Numéricas**: cada leitura dentro do limite zera a contagem e resolve o alerta ativo; leituras fora incrementam `alert_condition_states` e só abrem quando `occurrences` e `duration_seconds` forem atendidos (histerese simples).
+- **Supressão de duplicados**: índice único parcial `(rule_id, resource_id) WHERE status <> 'RESOLVED'`; enquanto o alerta estiver ativo, novas violações apenas atualizam `last_evaluated_at`, `value` e `occurrence_count`. Nenhuma notificação é repetida.
+- **Manutenção** (Fase 4): transições para `MAINTENANCE` e recursos em manutenção são ignorados pelo motor.
+
+### Ciclo de vida (`alert_events`)
+
+`OPEN` → `ACKNOWLEDGED` (operador, com observação) → `RESOLVED` (`CONDITION_CLEARED` automático, `MANUAL` por operador, `RULE_DISABLED`). Cada passo registra usuário, horário e vai para a auditoria. `notification_count` e `occurrence_count` ficam no evento.
+
+### Notificações internas (`notifications`)
+
+Uma linha por **membro** da organização (fan-out na mesma transação). Tipos: recurso indisponível, recurso recuperado, alerta disparado, alerta resolvido (incidentes e manutenções na Fase 4). `dedupe_key` único por usuário evita duplicidade em reprocessamentos (padrão outbox simplificado). E-mail e webhooks (Fase 5) consumirão esta tabela.
+
+### Tempo real
+
+Ver [architecture.md](architecture.md#tempo-real-websocket). Eventos: `resource.status_changed`, `resource.check_completed`, `alert.triggered`, `alert.acknowledged`, `alert.resolved`, `notification.created`.
 
 ## Incidentes (Fase 4 — definições)
 

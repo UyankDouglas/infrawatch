@@ -11,7 +11,10 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import com.infrawatch.common.events.DomainEvents.CheckCompleted;
+import com.infrawatch.common.events.DomainEvents.ResourceStatusChanged;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -31,13 +34,16 @@ public class CheckResultApplier {
     private final HealthCheckExecutionRepository executions;
     private final ResourceStatusHistoryRepository history;
     private final MonitoringMetrics metrics;
+    private final ApplicationEventPublisher events;
 
     public CheckResultApplier(MonitoredResourceRepository resources, HealthCheckExecutionRepository executions,
-                              ResourceStatusHistoryRepository history, MonitoringMetrics metrics) {
+                              ResourceStatusHistoryRepository history, MonitoringMetrics metrics,
+                              ApplicationEventPublisher events) {
         this.resources = resources;
         this.executions = executions;
         this.history = history;
         this.metrics = metrics;
+        this.events = events;
     }
 
     @Transactional
@@ -78,7 +84,12 @@ public class CheckResultApplier {
             metrics.transition();
             log.info("Transição de estado: recurso={} {} -> {} ({})", resource.getId(), previous, decision.status(),
                     decision.reason());
+            events.publishEvent(new ResourceStatusChanged(resource.getOrganizationId(), resource.getId(),
+                    resource.getName(), previous, decision.status(), decision.reason(), outcome.finishedAt(), "http_check"));
         }
+        events.publishEvent(new CheckCompleted(resource.getOrganizationId(), resource.getId(), resource.getName(),
+                outcome.success(), outcome.httpStatus(), outcome.responseTimeMs(), outcome.errorCode(),
+                decision.status(), outcome.finishedAt()));
         return Optional.of(new Applied(execution, previous, decision.status(), transitioned, true));
     }
 }

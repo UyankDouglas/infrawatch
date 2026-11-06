@@ -3,6 +3,7 @@ package com.infrawatch.seed;
 import com.infrawatch.auth.User;
 import com.infrawatch.auth.UserRepository;
 import com.infrawatch.metrics.AgentService;
+import com.infrawatch.alerts.AlertService;
 import com.infrawatch.organization.MemberRole;
 import com.infrawatch.organization.Organization;
 import com.infrawatch.organization.OrganizationMember;
@@ -44,11 +45,13 @@ public class DemoSeeder implements ApplicationRunner {
     private final PasswordEncoder encoder;
     private final SeedProperties properties;
     private final AgentService agentService;
+    private final AlertService alertService;
 
     public DemoSeeder(UserRepository users, OrganizationRepository organizations, OrganizationMemberRepository members,
                       MonitoredResourceRepository resources, ResourceGroupRepository groups, PasswordEncoder encoder,
-                      SeedProperties properties, AgentService agentService) {
+                      SeedProperties properties, AgentService agentService, AlertService alertService) {
         this.agentService = agentService;
+        this.alertService = alertService;
         this.users = users;
         this.organizations = organizations;
         this.members = members;
@@ -79,6 +82,8 @@ public class DemoSeeder implements ApplicationRunner {
         User other = users.save(new User("admin@outra.infrawatch.local", hash, "Olga Outra"));
         Organization otherOrg = organizations.save(new Organization("Outra Empresa", "outra-empresa"));
         members.save(new OrganizationMember(otherOrg, other, MemberRole.ADMIN));
+        alertService.ensureDefaultRules(org.getId(), admin.getId());
+        alertService.ensureDefaultRules(otherOrg.getId(), other.getId());
 
         ResourceGroup apis = groups.save(new ResourceGroup(org.getId(), "APIs de demonstração",
                 "Serviços Docker locais usados para demonstrar o InfraWatch"));

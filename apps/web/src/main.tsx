@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
 import { ThemeProvider } from "@/app/theme";
 import { AuthProvider } from "@/features/auth/AuthProvider";
+import { RealtimeProvider } from "@/app/realtime";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiError } from "@/services/api";
@@ -28,9 +29,11 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <TooltipProvider delayDuration={300}>
-            <RouterProvider router={router} />
-          </TooltipProvider>
+          <RealtimeProvider>
+            <TooltipProvider delayDuration={300}>
+              <RouterProvider router={router} />
+            </TooltipProvider>
+          </RealtimeProvider>
           <Toaster />
         </AuthProvider>
       </QueryClientProvider>

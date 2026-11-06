@@ -220,6 +220,7 @@ export interface Overview {
   problematic: ResourceSummary[];
   resources: ResourceSummary[];
   recentTransitions: TransitionSummary[];
+  recentAlerts: import("./alerts").AlertEvent[];
 }
 
 export interface AvailabilitySeries {

@@ -34,6 +34,9 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import com.infrawatch.alerts.AlertEventRepository;
+import com.infrawatch.alerts.AlertMapper;
+import com.infrawatch.alerts.AlertEnums;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -42,12 +45,17 @@ public class DashboardService {
     private final MonitoredResourceRepository resources;
     private final HealthCheckExecutionRepository executions;
     private final ResourceStatusHistoryRepository history;
+    private final AlertEventRepository alerts;
+    private final AlertMapper alertMapper;
 
     public DashboardService(MonitoredResourceRepository resources, HealthCheckExecutionRepository executions,
-                            ResourceStatusHistoryRepository history) {
+                            ResourceStatusHistoryRepository history, AlertEventRepository alerts,
+                            AlertMapper alertMapper) {
         this.resources = resources;
         this.executions = executions;
         this.history = history;
+        this.alerts = alerts;
+        this.alertMapper = alertMapper;
     }
 
     @Transactional(readOnly = true)
@@ -112,12 +120,13 @@ public class DashboardService {
                 byStatus.get(ResourceStatus.DEGRADED),
                 byStatus.get(ResourceStatus.PENDING) + byStatus.get(ResourceStatus.UNKNOWN),
                 byStatus.get(ResourceStatus.PENDING), byStatus.get(ResourceStatus.UNKNOWN), paused,
-                0, 0,
+                0, alerts.countByOrganizationIdAndStatusIn(orgId, List.of(AlertEnums.Status.OPEN, AlertEnums.Status.ACKNOWLEDGED)),
                 availability, observed,
                 "Tempo disponível ÷ tempo observado com estado conhecido, somado entre os recursos. Períodos aguardando/sem dados são excluídos. Manutenções: Fase 4.",
                 avgResponse == null ? null : Math.round(avgResponse * 10) / 10.0, checks, checks - okChecks,
                 distribution, types, problematic,
-                all.stream().map(DashboardService::summary).toList(), recent);
+                all.stream().map(DashboardService::summary).toList(), recent,
+                alerts.findTop10ByOrganizationIdOrderByTriggeredAtDesc(orgId).stream().map(alertMapper::toResponse).toList());
     }
 
     @Transactional(readOnly = true)

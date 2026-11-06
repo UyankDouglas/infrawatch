@@ -6,7 +6,8 @@
 
 **Fase 1 — Fundação e monitoramento funcional: CONCLUÍDA (2026-11-06).**
 **Fase 2 — Métricas de infraestrutura (agente autorizado): CONCLUÍDA (2026-11-06).**
-Próxima: **Fase 3 — Tempo real (WebSocket) e alertas**.
+**Fase 3 — Tempo real (WebSocket) e alertas: CONCLUÍDA (2026-11-06).**
+Próxima: **Fase 4 — Incidentes e manutenções programadas**.
 
 ## Stack e versões escolhidas (verificadas no Maven Central / npm em 2026-11-06)
 
@@ -58,6 +59,19 @@ Próxima: **Fase 3 — Tempo real (WebSocket) e alertas**.
 - [x] Métricas internas: `infrawatch.engine.agent.samples.accepted|rejected`
 - [x] Docs atualizadas: monitoring-engine, architecture, security, decisions (17–20), deploy, README; CI constrói o agente
 
+## Funcionalidades concluídas (Fase 3)
+
+- [x] Migração `V3__alertas_notificacoes.sql`: `alert_rules`, `alert_events` (índice único parcial = um alerta ativo por regra×recurso), `alert_condition_states`, `notifications` (dedupe por usuário)
+- [x] Eventos de domínio (`common.events.DomainEvents`) publicados por `CheckResultApplier`, `IngestService`, `StaleResourceDetector` e `MetricMaintenanceJobs`
+- [x] `AlertEngine` (mesma transação): STATUS_DOWN / STATUS_DEGRADED / AGENT_NO_DATA por transição; LATENCY por verificação; CPU / MEMORY / DISK por amostra; ocorrências consecutivas + duração mínima; histerese (leitura normal resolve); manutenção ignorada
+- [x] Sete regras padrão por organização (cadastro, seed e backfill na inicialização)
+- [x] API: `GET/POST/PATCH/DELETE /alert-rules`, `GET /alert-rules/options`, `GET /alerts`, `GET /alerts/summary`, `GET /alerts/{id}`, `POST /alerts/{id}/acknowledge|resolve`, `GET /resources/{id}/alerts`, `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all`
+- [x] Notificações internas por membro (indisponível, recuperado, alerta disparado/resolvido) com `dedupe_key`
+- [x] WebSocket STOMP em `/ws`: handshake pela sessão, CONNECT exige Principal, SUBSCRIBE validado por associação à organização, clientes não publicam; `RealtimeBroadcaster` pós-commit com envelope `{id, seq, type, organizationId, occurredAt, payload}`; tópicos `/topic/org/{id}` e `/user/queue/notifications`
+- [x] Frontend: `RealtimeProvider` (@stomp/stompjs, backoff exponencial, ressincronização REST em reconexão/salto de sequência, toasts), indicador de tempo real na topbar, sino de notificações, página **Alertas** (KPIs, filtros, drawer com timeline, reconhecer/resolver, aba de regras com CRUD e ativar/desativar), alertas ativos na página do recurso, KPI real e painel "Alertas recentes" no dashboard
+- [x] nginx `/ws` com upgrade; Vite proxy `ws:true`
+- [x] Métricas internas: `infrawatch.engine.alerts.triggered|resolved`, `infrawatch.engine.realtime.events`
+
 ## Testes
 
 | Suíte | Como rodar | Último resultado |
@@ -67,6 +81,8 @@ Próxima: **Fase 3 — Tempo real (WebSocket) e alertas**.
 | Frontend (Vitest + RTL): api client, format, StatusBadge, LoginPage, OverviewPage | `cd apps/web && npm run test:run` | 18/18 passando |
 | Backend Fase 2: AgentTokensTest 3, AgentIngestIT 8 (registro, ingestão, métricas ausentes, tokens inválidos/revogados, rotação, 429/400, isolamento, rollup+retenção, agente silencioso) | idem (total 73) | 11/11 passando (2026-11-06) |
 | Frontend Fase 2: AgentMetricsPanel (4) | idem | 22/22 no total |
+| Backend Fase 3: AlertEngineIT 6 (regras padrão, alerta único + notificações + recuperação, reconhecimento/resolução/RBAC/auditoria, latência com ocorrências, regras de agente + falta de dados, CRUD de regras), WebSocketIT 3 (eventos da própria organização + notificação do usuário, recusa de outra organização, handshake sem sessão) | idem (total 82) | ver "Execução" |
+| Frontend Fase 3: NotificationsBell (1) | idem | 23/23 no total |
 | E2E (Playwright, 3 cenários): cadastro → recurso → verificação real → falha controlada → Indisponível → recuperação → isolamento | `docker compose --profile full up -d && cd e2e && E2E_DEMO_TARGET_HOST=host.docker.internal npx playwright test` | 3/3 passando (dev local e Docker completo) |
 
 ### Execução manual validada em 2026-11-06 (Fase 2)
@@ -91,13 +107,13 @@ Próxima: **Fase 3 — Tempo real (WebSocket) e alertas**.
 - Retenção de `health_check_executions` ainda não é aplicada (política e agregação na Fase 2, junto com as amostras do agente).
 - E2E depende do ambiente completo (Docker ou dev local); quando a API roda em container, o recurso de teste aponta para `host.docker.internal:9103` (`E2E_DEMO_TARGET_HOST`).
 - O agente usa apenas APIs da JVM: em Windows não há carga média nem uptime do SO (exibidos como indisponíveis). Agente para macOS/Windows nativo não está no escopo.
+- Sequência de eventos WebSocket é por instância (memória); com múltiplas instâncias passa a vir de Redis/banco. O cliente ressincroniza via REST em qualquer salto.
 - Rollups são gerados a cada 5 min; nos primeiros minutos após instalar um agente a consulta de 7 d usa as amostras brutas (`granularity: raw_fallback`).
 
-## Próximas tarefas (Fase 3)
+## Próximas tarefas (Fase 4)
 
-1. Spring WebSocket (STOMP sobre SockJS ou WebSocket puro) com autenticação pela sessão e tópico por organização; eventos `resource.status_changed`, `resource.check_completed`, `alert.triggered`, `alert.acknowledged`, com `version`/sequência.
-2. Cliente WebSocket no frontend com reconexão exponencial e ressincronização via REST ao reconectar.
-3. Entidades `AlertRule`, `AlertEvent`, `Notification` + migração V3; motor de alertas acionado por transições de estado e por amostras do agente (CPU/RAM/disco acima do limite, falta de dados).
-4. Severidades, duração mínima, supressão de duplicados, reconhecimento/resolução, histórico.
-5. Notificações internas (sino na topbar) com outbox.
-6. Páginas Alertas e regras; KPI "Alertas ativos" real no dashboard.
+1. Migração V4: `incidents`, `incident_comments`, `incident_history`, `maintenance_windows` (+ recursos associados).
+2. Abertura automática de incidente na transição para Indisponível (configurável), vinculada ao alerta; resolução automática na recuperação apenas para incidentes automáticos.
+3. Gestão manual: criar, atribuir, reconhecer, investigar, resolver, encerrar; comentários; timeline com eventos reais; histórico de alterações; eventos WebSocket `incident.*` e notificações (criado, atribuído).
+4. Manutenções programadas: seleção de recursos, início/fim, motivo, responsável, encerrar antecipadamente; estado `MAINTENANCE` durante a janela; alertas/notificações suprimidos; verificações mantidas; disponibilidade com/sem manutenção.
+5. Páginas Incidentes e Manutenções; KPIs reais no dashboard ("Incidentes ativos", "Próximas manutenções").
