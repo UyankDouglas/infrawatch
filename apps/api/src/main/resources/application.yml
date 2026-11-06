@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: infrawatch-api
+  datasource:
+    url: ${INFRAWATCH_DB_URL:jdbc:postgresql://localhost:5433/infrawatch}
+    username: ${INFRAWATCH_DB_USER:infrawatch}
+    password: ${INFRAWATCH_DB_PASSWORD:infrawatch}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  threads:
+    virtual:
+      enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2
+
+server:
+  port: ${INFRAWATCH_API_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        name: INFRAWATCH_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${INFRAWATCH_COOKIE_SECURE:false}
+      timeout: 12h
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  server:
+    port: ${INFRAWATCH_MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /api/v1/openapi
+  swagger-ui:
+    path: /api/v1/docs
+
+infrawatch:
+  security:
+    cors-allowed-origins: ${INFRAWATCH_CORS_ORIGINS:http://localhost:5174}
+    rate-limit:
+      auth-requests-per-minute: 20
+  monitoring:
+    enabled: ${INFRAWATCH_MONITORING_ENABLED:true}
+    dispatcher-interval: 5s
+    max-concurrent-checks: 8
+    batch-size: 50
+    min-interval-seconds: 30
+    max-timeout-ms: 30000
+    max-response-bytes: 65536
+    max-redirects: 3
+    stale-after-multiplier: 3
+    target-policy:
+      mode: ALLOWLIST_ONLY
+      allowed-hosts: ${INFRAWATCH_ALLOWED_HOSTS:localhost,127.0.0.1,host.docker.internal,demo-healthy,demo-degraded,demo-flaky}
+      allowed-ports: ${INFRAWATCH_ALLOWED_PORTS:80,443,8080,8081,9101,9102,9103}
+  seed:
+    enabled: ${INFRAWATCH_SEED_ENABLED:false}
+    demo-base-url: ${INFRAWATCH_DEMO_BASE_URL:http://localhost}
+
+logging:
+  level:
+    com.infrawatch: INFO
+    org.springframework.security: WARN

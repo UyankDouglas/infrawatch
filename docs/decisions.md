@@ -1,0 +1,20 @@
+# Registro de decisões (ADR resumido)
+
+| # | Decisão | Motivo | Consequências |
+|---|---|---|---|
+| 1 | **Spring Boot 4.1.2** (não 3.5) | Em nov/2026 a linha 3.5 já saiu do suporte OSS; 4.1.2 é a GA mais recente, compatível com springdoc 3.2.0 e Testcontainers 2.0.5 | Starters modulares (`-webmvc`, `-flyway`, `-micrometer-metrics`), Jackson 3 (`tools.jackson`), `@AutoConfigureMockMvc` em `org.springframework.boot.webmvc.test.autoconfigure` |
+| 2 | Monólito modular por domínio | Evitar complexidade artificial; módulos com fronteiras claras permitem extrair serviços depois | Pacotes `auth`, `organization`, `resource`, `monitoring`, `dashboard`, `audit`, `security`, `common` |
+| 3 | Sessão em cookie HttpOnly + CSRF double-submit (não JWT) | Requisito do produto; sessões revogáveis, sem token no JS | Spring Session para persistência (Fase 5); frontend lê `XSRF-TOKEN` |
+| 4 | Organização ativa resolvida no servidor | Nunca confiar em `organizationId` do cliente | `CurrentContextService` valida a associação a cada requisição |
+| 5 | Reivindicação de verificações com `UPDATE … FOR UPDATE SKIP LOCKED … RETURNING` | Atomicidade sem Redis; funciona com várias instâncias | Redis adiado até haver necessidade concreta (rate limit/sessões distribuídas) |
+| 6 | UUIDs gerados na aplicação | Identificadores públicos estáveis, independentes do banco | `UUID.randomUUID()` nos construtores das entidades |
+| 7 | Tags em tabela própria (`ElementCollection`) em vez de `text[]` | Portabilidade e validação por elemento | Join adicional (carregado EAGER, volume pequeno) |
+| 8 | JDK `HttpClient` (não WebClient/RestClient) | Controle fino de redirecionamentos, timeouts e corpo; sem dependência reativa | Risco residual de DNS rebinding documentado em `security.md` |
+| 9 | Allowlist obrigatória por padrão (`ALLOWLIST_ONLY`) | O produto monitora recursos autorizados; nunca um scanner | Modo `PUBLIC_AND_ALLOWLIST` existe, mas não é o padrão |
+| 10 | Disponibilidade baseada em tempo com estado conhecido | Não inventar 100% sem medições; manutenção/sem dados excluídos | `AvailabilityCalculator`; nota exibida na UI |
+| 11 | Polling (10–15 s) na Fase 1 | WebSocket é entrega da Fase 3; a API REST continua sendo a fonte de verdade na reconexão | TanStack Query com `refetchInterval` |
+| 12 | shadcn/ui estilo `new-york` (Radix) em vez de `base-nova` (Base UI) | API conhecida e estável, acessibilidade por teclado madura | Dependência `radix-ui` |
+| 13 | TanStack Table fixado em **8.x** | 9.x recém-lançado; evitar API em transição | Upgrade avaliado na Fase 6 |
+| 14 | Serviços de demonstração em Node sem dependências, controlados por `/__control` | Cenários determinísticos e reproduzíveis; nenhum destino externo | Scripts `scripts/demo.sh` / `demo.ps1` |
+| 15 | Postgres na porta **5433** do host | Evitar conflito com instâncias locais na 5432 | `INFRAWATCH_DB_URL` padrão aponta para 5433 |
+| 16 | Actuator em porta separada (8081), publicada só em localhost | Não expor endpoints administrativos | Prometheus (Fase 5) coleta na rede interna do Compose |

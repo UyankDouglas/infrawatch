@@ -1,0 +1,89 @@
+name: infrawatch
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: infrawatch-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-infrawatch}
+      POSTGRES_USER: ${POSTGRES_USER:-infrawatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-infrawatch}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - infrawatch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-infrawatch} -d ${POSTGRES_DB:-infrawatch}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # --- Serviços de demonstração (seguros, locais, determinísticos) ---
+  demo-healthy:
+    build: ./apps/demo-services
+    container_name: infrawatch-demo-healthy
+    environment:
+      DEMO_NAME: api-saudavel
+      DEMO_MODE: healthy
+      PORT: "9101"
+    ports:
+      - "9101:9101"
+
+  demo-degraded:
+    build: ./apps/demo-services
+    container_name: infrawatch-demo-degraded
+    environment:
+      DEMO_NAME: api-degradada
+      DEMO_MODE: degraded
+      DEMO_LATENCY_MS: "1800"
+      PORT: "9102"
+    ports:
+      - "9102:9102"
+
+  demo-flaky:
+    build: ./apps/demo-services
+    container_name: infrawatch-demo-flaky
+    environment:
+      DEMO_NAME: api-instavel
+      DEMO_MODE: flaky
+      PORT: "9103"
+    ports:
+      - "9103:9103"
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: infrawatch-api
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      INFRAWATCH_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-infrawatch}
+      INFRAWATCH_DB_USER: ${POSTGRES_USER:-infrawatch}
+      INFRAWATCH_DB_PASSWORD: ${POSTGRES_PASSWORD:-infrawatch}
+      INFRAWATCH_CORS_ORIGINS: http://localhost:${WEB_PORT:-5174}
+      INFRAWATCH_SEED_ENABLED: ${INFRAWATCH_SEED_ENABLED:-true}
+      INFRAWATCH_DEMO_BASE_URL: http://host.docker.internal
+      INFRAWATCH_ALLOWED_HOSTS: localhost,127.0.0.1,host.docker.internal,demo-healthy,demo-degraded,demo-flaky
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${API_PORT:-8080}:8080"
+      - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_URL: ""
+    container_name: infrawatch-web
+    profiles: ["full"]
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-5174}:80"
+
+volumes:
+  infrawatch-pgdata:

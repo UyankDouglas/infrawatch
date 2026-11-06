@@ -1,0 +1,19 @@
+{
+  "name": "API de Pedidos",
+  "description": "Health check da API de pedidos (serviço de demonstração saudável).",
+  "type": "HEALTH_ENDPOINT",
+  "targetUrl": "http://localhost:9101/health",
+  "environment": "PRODUCTION",
+  "owner": "Equipe de Plataforma",
+  "tags": ["pedidos", "critico"],
+  "check": {
+    "intervalSeconds": 60,
+    "timeoutMs": 3000,
+    "httpMethod": "GET",
+    "expectedStatusCodes": "200-299",
+    "degradedLatencyMs": 800,
+    "failureThreshold": 3,
+    "recoveryThreshold": 2,
+    "followRedirects": false
+  }
+}

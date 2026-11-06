@@ -1,0 +1,23 @@
+# Dependências e builds
+node_modules/
+dist/
+target/
+apps/web/dist/
+apps/web/coverage/
+apps/api/target/
+
+# Ambiente
+.env
+*.local
+
+# IDE / SO
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs e temporários
+*.log
+e2e/test-results/
+e2e/playwright-report/

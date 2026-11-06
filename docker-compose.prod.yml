@@ -1,0 +1,31 @@
+# Sobreposição para execução "tipo produção" local (ainda sem TLS; proxy reverso fica a cargo do ambiente).
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile full up -d --build
+# Ajustes completos (imagens versionadas, Prometheus/Grafana, limites) chegam na Fase 6.
+services:
+  postgres:
+    ports: []          # banco não exposto no host
+    restart: unless-stopped
+
+  api:
+    restart: unless-stopped
+    environment:
+      INFRAWATCH_SEED_ENABLED: "false"
+      INFRAWATCH_COOKIE_SECURE: ${INFRAWATCH_COOKIE_SECURE:-false}
+      INFRAWATCH_DEMO_BASE_URL: http://demo-healthy
+      INFRAWATCH_ALLOWED_HOSTS: ${INFRAWATCH_ALLOWED_HOSTS:-demo-healthy,demo-degraded,demo-flaky}
+    ports:
+      - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"   # API pública só via web/nginx
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  web:
+    restart: unless-stopped
+
+  demo-healthy:
+    ports: []
+  demo-degraded:
+    ports: []
+  demo-flaky:
+    ports: []

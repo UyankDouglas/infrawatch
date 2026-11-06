@@ -1,0 +1,18 @@
+infrawatch:
+  monitoring:
+    enabled: false
+    dispatcher-interval: 1s
+    min-interval-seconds: 30
+    max-concurrent-checks: 4
+    target-policy:
+      mode: ALLOWLIST_ONLY
+      allowed-hosts: localhost,127.0.0.1,demo-healthy
+      allowed-ports: ""
+  seed:
+    enabled: false
+  security:
+    rate-limit:
+      auth-requests-per-minute: 1000
+logging:
+  level:
+    com.infrawatch: INFO
