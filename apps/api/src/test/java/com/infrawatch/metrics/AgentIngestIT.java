@@ -31,7 +31,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
     @Autowired MetricsProperties properties;
 
     private String createServer(Session s, String name) throws Exception {
-        MvcResult result = mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http())
+        MvcResult result = mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"%s\",\"type\":\"AGENT_SERVER\",\"targetUrl\":\"srv-01.interno\",\"environment\":\"PRODUCTION\"}".formatted(name)))
                 .andExpect(status().isCreated())
@@ -40,7 +40,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
     }
 
     private String registerAgent(Session s, String resourceId) throws Exception {
-        MvcResult result = mvc.perform(post("/api/v1/agents/register").with(csrf()).session(s.http())
+        MvcResult result = mvc.perform(post("/api/v1/agents/register").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resourceId\":\"%s\",\"name\":\"agente-01\",\"intervalSeconds\":10}".formatted(resourceId)))
                 .andExpect(status().isCreated())
@@ -72,11 +72,11 @@ class AgentIngestIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.nextIntervalSeconds").value(10))
                 .andExpect(jsonPath("$.ignoredMetrics").isEmpty());
 
-        mvc.perform(get("/api/v1/resources/" + resourceId).session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + resourceId).cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
 
-        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").session(s.http()).param("period", "1h"))
+        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").cookie(s.cookie()).param("period", "1h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasAgent").value(true))
                 .andExpect(jsonPath("$.source").value("agent"))
@@ -88,7 +88,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.series[0].samples").value(1))
                 .andExpect(jsonPath("$.agent.hostname").value("srv-01"));
 
-        mvc.perform(get("/api/v1/resources/" + resourceId + "/history").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + resourceId + "/history").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[0].toStatus").value("UP"))
                 .andExpect(jsonPath("$.items[0].reason").value(org.hamcrest.Matchers.containsString("agente")));
     }
@@ -106,7 +106,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.ignoredMetrics", org.hamcrest.Matchers.containsInAnyOrder("memory", "disk", "uptime")));
 
-        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.missingMetrics", org.hamcrest.Matchers.containsInAnyOrder("memory", "disk", "uptime", "load")))
                 .andExpect(jsonPath("$.values[?(@.key=='memory')].available").value(false))
@@ -130,7 +130,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
 
         String agentId = agents.findByResourceId(UUID.fromString(resourceId)).orElseThrow().getId().toString();
-        mvc.perform(delete("/api/v1/agents/" + agentId).with(csrf()).session(s.http()))
+        mvc.perform(delete("/api/v1/agents/" + agentId).with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REVOKED"));
         mvc.perform(post("/api/v1/agents/ingest").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(samplePayload(1)))
@@ -145,7 +145,7 @@ class AgentIngestIT extends AbstractIntegrationTest {
         String oldToken = registerAgent(s, resourceId);
         String agentId = agents.findByResourceId(UUID.fromString(resourceId)).orElseThrow().getId().toString();
 
-        String newToken = JsonPath.read(mvc.perform(post("/api/v1/agents/" + agentId + "/rotate").with(csrf()).session(s.http()))
+        String newToken = JsonPath.read(mvc.perform(post("/api/v1/agents/" + agentId + "/rotate").with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.token");
         assertThat(newToken).isNotEqualTo(oldToken);
 
@@ -183,20 +183,20 @@ class AgentIngestIT extends AbstractIntegrationTest {
     void registrationRules() throws Exception {
         Session s = register("Admin", "Org Regras");
         String http = createResource(s, "HTTP", "http://localhost:9101/health");
-        mvc.perform(post("/api/v1/agents/register").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/agents/register").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resourceId\":\"%s\",\"name\":\"x\"}".formatted(http)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("agent_resource_type"));
 
         String server = createServer(s, "Servidor regras");
         registerAgent(s, server);
-        mvc.perform(post("/api/v1/agents/register").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/agents/register").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resourceId\":\"%s\",\"name\":\"x\"}".formatted(server)))
                 .andExpect(status().isConflict());
 
         Session other = register("Outra", "Org Outra");
-        mvc.perform(get("/api/v1/agents").session(other.http())).andExpect(jsonPath("$").isEmpty());
-        mvc.perform(get("/api/v1/resources/" + server + "/agent-metrics").session(other.http())).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/agents/register").with(csrf()).session(other.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(get("/api/v1/agents").cookie(other.cookie())).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get("/api/v1/resources/" + server + "/agent-metrics").cookie(other.cookie())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/agents/register").with(csrf()).cookie(other.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resourceId\":\"%s\",\"name\":\"x\"}".formatted(server)))
                 .andExpect(status().isNotFound());
     }
@@ -244,10 +244,10 @@ class AgentIngestIT extends AbstractIntegrationTest {
 
         jobs.detectSilentAgents();
 
-        mvc.perform(get("/api/v1/resources/" + resourceId).session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + resourceId).cookie(s.cookie()))
                 .andExpect(jsonPath("$.status").value("UNKNOWN"))
                 .andExpect(jsonPath("$.statusLabel").value("Sem dados"));
-        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + resourceId + "/agent-metrics").cookie(s.cookie()))
                 .andExpect(jsonPath("$.stale").value(true));
     }
 }

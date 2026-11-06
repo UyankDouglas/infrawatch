@@ -26,6 +26,8 @@ const state = {
   patternIndex: 0,
   requests: 0,
   startedAt: new Date().toISOString(),
+  // Receptor de webhooks (Fase 5): guarda as últimas entregas recebidas em /__webhook para inspeção em /__webhook/received.
+  webhooks: [],
 };
 
 function json(res, status, body) {
@@ -53,6 +55,25 @@ function readBody(req) {
       }
     });
   });
+}
+
+function readRaw(req) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > 50_000) req.destroy();
+    });
+    req.on("end", () => resolve(data));
+  });
+}
+
+function safeJson(raw) {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return raw;
+  }
 }
 
 function nextOutcome() {
@@ -105,6 +126,24 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname.startsWith("/__control")) {
     return handleControl(req, res, url);
+  }
+
+  if (url.pathname === "/__webhook" && req.method === "POST") {
+    const raw = await readRaw(req);
+    const entry = {
+      receivedAt: new Date().toISOString(),
+      event: req.headers["x-infrawatch-event"] || null,
+      delivery: req.headers["x-infrawatch-delivery"] || null,
+      signature: req.headers["x-infrawatch-signature"] || null,
+      body: safeJson(raw),
+    };
+    state.webhooks.unshift(entry);
+    if (state.webhooks.length > 50) state.webhooks.length = 50;
+    console.log(`[demo:${name}] webhook recebido evento=${entry.event} entrega=${entry.delivery}`);
+    return json(res, 200, { ok: true });
+  }
+  if (url.pathname === "/__webhook/received" && req.method === "GET") {
+    return json(res, 200, { count: state.webhooks.length, received: state.webhooks });
   }
 
   if (url.pathname === "/health" || url.pathname === "/") {

@@ -36,6 +36,7 @@ import { AgentMetricsPanel } from "@/features/metrics/AgentMetricsPanel";
 import { AgentPanel } from "@/features/metrics/AgentPanel";
 import { ResourceAlerts } from "@/features/alerts/ResourceAlerts";
 import { ResourceIncidentsPanel } from "@/features/incidents/ResourceIncidentsPanel";
+import { ResourceReportPanel } from "@/features/reports/ResourceReportPanel";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { usePeriod } from "@/hooks/usePeriod";
 import { ApiError } from "@/services/api";
@@ -317,6 +318,7 @@ export function ResourceDetailPage() {
           <TabsTrigger value="checks">Verificações</TabsTrigger>
           <TabsTrigger value="history">Histórico de estados</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
+          <TabsTrigger value="report">Relatório</TabsTrigger>
         </TabsList>
 
         {r.type === "AGENT_SERVER" && (
@@ -468,6 +470,9 @@ export function ResourceDetailPage() {
               {r.description && <p className="mt-4 text-sm text-muted-foreground">{r.description}</p>}
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="report">
+          <ResourceReportPanel resourceId={r.id} period={period} isAgent={r.type === "AGENT_SERVER"} />
         </TabsContent>
       </Tabs>
 

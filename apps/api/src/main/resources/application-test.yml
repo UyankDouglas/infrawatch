@@ -10,6 +10,9 @@ infrawatch:
       allowed-ports: ""
   seed:
     enabled: false
+  integrations:
+    dispatch-enabled: true
+    base-url: http://localhost:5174
   security:
     rate-limit:
       auth-requests-per-minute: 1000

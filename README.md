@@ -18,7 +18,7 @@ Equipes de TI, suporte e operações precisam saber **agora** se um serviço est
 
 O InfraWatch centraliza isso: você cadastra os recursos que administra, o backend verifica cada um periodicamente, confirma falhas com histerese (nada de alarme por uma oscilação), registra tudo no banco e mostra indicadores calculados a partir dos dados reais.
 
-## Funcionalidades (Fases 1 a 4 concluídas)
+## Funcionalidades (Fases 1 a 5 concluídas)
 
 - **Contas e organizações** multi-tenant com perfis Administrador / Operador / Visualizador.
 - **Recursos monitorados**: serviços HTTP/HTTPS e aplicações com health check, com grupo, ambiente, responsável, tags e configuração de verificação (intervalo ≥ 30 s, timeout, códigos HTTP esperados, limite de degradação, limiares de falha e recuperação).
@@ -34,10 +34,13 @@ O InfraWatch centraliza isso: você cadastra os recursos que administra, o backe
 - **Notificações internas**: sino na topbar com não lidas, geradas para indisponibilidade, recuperação, alertas, incidentes e manutenções, sem duplicidade.
 - **Incidentes** (Fase 4): abertos automaticamente quando um recurso é confirmado indisponível (vinculados ao alerta) ou manualmente; status Aberto → Reconhecido → Em investigação → Resolvido → Encerrado, atribuição, comentários, causa, observações e timeline com histórico real; automáticos resolvem na recuperação, manuais nunca sozinhos; MTTR das últimas 24 h.
 - **Manutenções programadas** (Fase 4): janelas por recurso com início/fim, motivo e responsável; recursos ficam "Em manutenção", alertas e incidentes são suprimidos, verificações continuam; encerramento antecipado; disponibilidade com manutenção excluída ou contada.
-- **Ambiente de demonstração** em Docker com três serviços HTTP controláveis deterministicamente e um container com o agente reportando métricas reais.
-- **Observabilidade própria**: Actuator, Micrometer, correlation id, logs estruturados.
+- **Relatórios** (Fase 5): disponibilidade por recurso e período (manutenções excluídas ou contadas, sempre declarado), tempo indisponível, verificações e falhas, latência média/p95/máxima, incidentes, MTTR, MTTA e MTBF com limitação explícita (exige ≥ 2 incidentes); evolução de latência e de CPU/memória/disco por recurso; **exportações CSV/XLSX** com histórico e download.
+- **Canais externos** (Fase 5): e-mail (SMTP) e webhooks assinados (HMAC-SHA256) para destinos previamente autorizados, com fila (outbox), retentativas, deduplicação e envio **desligado por padrão** em desenvolvimento.
+- **Administração** (Fase 5): convites por link de uso único, alteração de perfil, remoção de membros (último administrador protegido), recuperação de senha, auditoria com filtros; sessões persistentes (reiniciar a API não desloga).
+- **Ambiente de demonstração** em Docker com três serviços HTTP controláveis deterministicamente, um container com o agente reportando métricas reais e, no perfil `observability`, Prometheus + Grafana (dashboard provisionado), Mailpit e OTel Collector.
+- **Observabilidade própria**: Actuator, Micrometer (`/actuator/prometheus`), correlation id, logs estruturados, traces OpenTelemetry opcionais.
 
-Roadmap: [Fases 2–6](#roadmap).
+Roadmap: [Fase 6](#roadmap).
 
 ## Tecnologias
 
@@ -113,6 +116,14 @@ cd apps/web && npm install && npm run dev
 
 Portas: web 5174 · API 8080 · Actuator 8081 (localhost) · PostgreSQL 5433 · demos 9101/9102/9103. Mais em [docs/deploy.md](docs/deploy.md).
 
+**Com Prometheus, Grafana, Mailpit e OTel Collector** (opcional):
+
+```bash
+docker compose --profile full --profile observability up -d --build
+```
+
+Grafana em http://127.0.0.1:3000 (`admin`/`admin`), Prometheus em :9090, Mailpit em :8025. Para testar e-mails e webhooks de verdade no ambiente local, defina `INFRAWATCH_INTEGRATIONS_ENABLED=true` e `INFRAWATCH_SMTP_HOST=mailpit` no `.env`.
+
 ## Demonstração guiada
 
 1. Entre e veja a **Visão Geral**: em poucos segundos a seed mostra *API Saudável* e *API Instável* como **Disponível** e *API Degradada* como **Degradado** (latência de ~1,8 s acima do limite de 800 ms).
@@ -129,6 +140,16 @@ Portas: web 5174 · API 8080 · Actuator 8081 (localhost) · PostgreSQL 5433 · 
    Duas verificações depois o recurso volta a **Disponível** ("Recuperado após 2 sucesso(s)"), e a Visão Geral reflete a mudança.
 5. Outros cenários: `scripts/demo.sh slow 3000` (latência), `scripts/demo.sh pattern "ok,ok,fail"` (sequência determinística), `scripts/demo.sh reset`.
 6. Abra **Servidor de demonstração**: o container `infrawatch-agent-demo` reporta CPU, memória, disco e uptime a cada 15 s (etiqueta *Fonte: agente autorizado*). Pare o container (`docker stop infrawatch-agent-demo`) e, após ~45 s, o recurso passa a **Sem dados**; inicie de novo e ele volta a **Disponível**.
+7. **Relatórios**: veja a disponibilidade de cada recurso com a fórmula declarada, troque o tratamento de manutenções e exporte em CSV ou XLSX (o arquivo fica no histórico).
+8. **Configurações → Integrações**: crie um webhook para `http://host.docker.internal:9101/__webhook` e clique **Testar**; a entrega aparece no outbox e, com o envio habilitado, em `http://localhost:9101/__webhook/received`. Um canal de e-mail entrega no Mailpit. Em **Membros**, gere um convite e abra o link em outra janela anônima.
+
+## Relatórios, MTTR e MTBF
+
+Disponibilidade = tempo disponível ÷ tempo observado, só com estado conhecido; manutenções excluídas por padrão ou contadas como indisponibilidade (o relatório sempre diz qual modo usou). MTTR = média do tempo até resolver; MTBF = média do intervalo entre incidentes e só é calculado com dois ou mais incidentes no período (caso contrário o relatório explica). Detalhes e limitações em [docs/reports.md](docs/reports.md).
+
+## Canais externos e administração
+
+E-mail e webhooks saem de uma fila com retentativas e deduplicação, apenas para destinos autorizados pela mesma política anti-SSRF das verificações, e ficam **desligados por padrão** fora de produção. Convites, perfis, recuperação de senha e auditoria com filtros em [docs/integrations.md](docs/integrations.md).
 
 ## Como cadastrar recursos
 
@@ -154,7 +175,7 @@ Verificações HTTP informam disponibilidade, código e latência. Métricas int
 
 ## Segurança
 
-Argon2id, sessões em cookie HttpOnly com renovação no login, CSRF double-submit, rate limit em autenticação, RBAC no backend, organização ativa validada no servidor, proteção contra SSRF nas verificações, erros RFC 9457 sem vazamento interno, Actuator fora da porta pública, auditoria. Veja [docs/security.md](docs/security.md).
+Argon2id, sessões persistentes (Spring Session JDBC) em cookie HttpOnly com renovação no login, CSRF double-submit, rate limit em autenticação e recuperação de senha, RBAC no backend, organização ativa validada no servidor, proteção contra SSRF nas verificações **e nos webhooks**, envio externo desligado por padrão, erros RFC 9457 sem vazamento interno, Actuator fora da porta pública, auditoria com filtros. Veja [docs/security.md](docs/security.md).
 
 ## Testes
 
@@ -175,6 +196,8 @@ Playwright: cadastro → recurso autorizado → verificação real → falha con
 
 Os testes de integração da Fase 2 (`AgentIngestIT`) cobrem registro, ingestão autenticada, métricas ausentes, tokens inválidos/revogados/rotacionados, limite de frequência, defasagem de relógio, isolamento, rollup, retenção e agente silencioso. Os da Fase 3 (`AlertEngineIT`, `WebSocketIT`) cobrem regras padrão, alerta único por condição, notificações, recuperação, reconhecimento/resolução com auditoria, latência com ocorrências, regras de agente e falta de dados, validação de regras, e o canal WebSocket (eventos para a própria organização, recusa de assinatura de outra organização, handshake sem sessão).
 
+Os da Fase 5 (`ReportsIT`, `IntegrationsIT`, `MembersIT`, `PasswordResetIT`) cobrem relatórios e exportações CSV/XLSX (inclusive proteção contra CSV injection e isolamento), canais externos (destinos recusados pela política, webhook assinado contra um servidor HTTP interno, e-mail com `JavaMailSender` simulado, retentativas/backoff, outbox), convites e membros (uso único, e-mail coincidente, último administrador) e recuperação de senha (hash, uso único, sessões em `SPRING_SESSION`). Frontend: `ReportsPage` e `IntegrationsTab`. E2E `fase5.spec.ts`: relatório + exportação, convite ponta a ponta e canal webhook.
+
 CI em `.github/workflows/ci.yml`: build, typecheck, lint, testes, imagens Docker e E2E.
 
 ## Capturas de tela
@@ -183,10 +206,11 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 
 ## Limitações atuais
 
-- Sessões e rate limit em memória (uma instância). Spring Session/Redis na Fase 5.
+- Rate limit em memória (uma instância); Redis se houver escala horizontal. Sessões já são persistentes.
 - Sequência de eventos em tempo real é por instância; com várias instâncias será movida para Redis/banco.
 - Métricas de CPU/RAM/disco dependem do agente autorizado; nada é inferido de respostas HTTP. O agente usa APIs da JVM: em Windows não há carga média nem uptime do SO.
-- MTBF e relatórios por período ainda não existem (Fase 5); o MTTR exibido cobre as últimas 24 h.
+- Relatórios são calculados na leitura (sem agregações materializadas); a exportação de verificações limita-se às 20 000 mais recentes do período.
+- Envio externo (e-mail/webhook) fica desligado por padrão; os destinos de webhook precisam estar na allowlist.
 
 ## Roadmap
 
@@ -196,8 +220,8 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 | 2 | Agente autorizado: CPU, RAM, disco, uptime, retenção | ✅ concluída |
 | 3 | WebSocket, alertas, severidades, notificações internas | ✅ concluída |
 | 4 | Incidentes, timeline, comentários, manutenções programadas | ✅ concluída |
-| 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | próxima |
-| 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | |
+| 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | ✅ concluída |
+| 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | próxima |
 
 ---
 

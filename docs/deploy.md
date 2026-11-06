@@ -22,6 +22,7 @@ docker compose --profile full up -d --build
 | Demos | http://localhost:9101 · 9102 · 9103 (`/health`, `/__control`) |
 | Agente demo | container `infrawatch-agent-demo` (sem portas) reportando para a API a cada 15 s |
 | PostgreSQL | localhost:5433 (`infrawatch`/`infrawatch`) |
+| Prometheus / Grafana / Mailpit / OTel Collector | perfil `observability`: 127.0.0.1:9090 · :3000 · :8025 (SMTP 1025) · :4318 — `docker compose --profile full --profile observability up -d` |
 
 A seed (`INFRAWATCH_SEED_ENABLED=true`, padrão no perfil `full`) cria:
 
@@ -66,13 +67,18 @@ O Vite (porta 5174) faz proxy de `/api` para `localhost:8080`, então cookies de
 | `INFRAWATCH_DEMO_BASE_URL` | `http://localhost` | base das URLs da seed |
 | `INFRAWATCH_DEMO_AGENT_TOKEN` | vazio | token do agente de demonstração criado pela seed (perfil `full` define um valor local) |
 | `INFRAWATCH_METRICS_RAW_RETENTION` / `INFRAWATCH_METRICS_ROLLUP_RETENTION` / `INFRAWATCH_CHECK_RETENTION` | `7d` / `90d` / `30d` | retenção de amostras, rollups e execuções HTTP |
+| `INFRAWATCH_INTEGRATIONS_ENABLED` | `false` | habilita envio externo real (e-mail/webhook). Desligado: entregas ficam "ignoradas" |
+| `INFRAWATCH_BASE_URL` | `http://localhost:5174` | base dos links em e-mails, webhooks e convites |
+| `INFRAWATCH_SMTP_HOST` / `INFRAWATCH_SMTP_PORT` / `INFRAWATCH_SMTP_USERNAME` / `INFRAWATCH_SMTP_PASSWORD` / `INFRAWATCH_SMTP_AUTH` / `INFRAWATCH_SMTP_STARTTLS` | vazio / `1025` / … / `false` / `false` | SMTP (vazio = sem e-mail); no Compose com Mailpit: `mailpit` |
+| `INFRAWATCH_MAIL_FROM` | `infrawatch@localhost` | remetente |
+| `INFRAWATCH_TRACING_SAMPLING` / `INFRAWATCH_OTLP_ENDPOINT` | `0.0` / `http://localhost:4318/v1/traces` | traces OpenTelemetry (0 = desligado) |
 | `SPRING_PROFILES_ACTIVE` | — | `docker` ativa logs JSON (ECS) |
 
 Parâmetros do motor (`infrawatch.monitoring.*` em `application.yml`): `dispatcher-interval` (5 s), `max-concurrent-checks` (8), `batch-size` (50), `min-interval-seconds` (30), `max-timeout-ms` (30000), `max-response-bytes` (65536), `max-redirects` (3), `stale-after-multiplier` (3).
 
 ## Produção (opcional, Fase 6)
 
-`docker-compose.prod.yml` (a criar na Fase 6) adicionará: imagens versionadas, TLS via proxy reverso, `INFRAWATCH_COOKIE_SECURE=true`, volumes com backup, Prometheus + Grafana opcionais e limites de recursos.
+`docker-compose.prod.yml` adiciona imagens versionadas, TLS via proxy reverso, `INFRAWATCH_COOKIE_SECURE=true`, volumes com backup e limites de recursos. Prometheus + Grafana vêm do perfil `observability`. Para e-mails reais, aponte `INFRAWATCH_SMTP_*` para o seu servidor e ligue `INFRAWATCH_INTEGRATIONS_ENABLED=true`.
 
 ## Instalar o agente em um servidor seu
 

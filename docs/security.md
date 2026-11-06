@@ -3,7 +3,8 @@
 ## Autenticação e sessão
 
 - Senhas com **Argon2id** (`Argon2PasswordEncoder(16, 32, 1, 19456, 2)` — parâmetros recomendados pela OWASP).
-- Sessão servidor (`HttpSession`) em cookie **HttpOnly**, `SameSite=Lax`, nome `INFRAWATCH_SESSION`, `Secure` configurável (`INFRAWATCH_COOKIE_SECURE=true` atrás de TLS), expiração 12 h.
+- Sessão servidor persistida em PostgreSQL (**Spring Session JDBC**, tabela `SPRING_SESSION`): sobrevive a reinícios e a várias instâncias. Cookie **HttpOnly**, `SameSite=Lax`, nome `INFRAWATCH_SESSION`, `Secure` configurável (`INFRAWATCH_COOKIE_SECURE=true` atrás de TLS), expiração 12 h (`SessionConfig`).
+- **Recuperação de senha**: resposta neutra (não revela contas), token `pwd_…` guardado como hash SHA-256, 1 h, uso único; e-mail só quando SMTP + envio externo estão habilitados, caso contrário o link vai ao log (desenvolvimento). Rotas sob o rate limit de autenticação.
 - Login renova o identificador da sessão (`changeSessionId`) — proteção contra fixação.
 - Logout invalida a sessão no servidor.
 - Respostas de falha de login não distinguem "usuário inexistente" de "senha errada".
@@ -14,13 +15,14 @@ Padrão **double submit cookie** recomendado pela documentação do Spring Secur
 
 ## Autorização
 
-- Rotas: só `/auth/register`, `/auth/login`, `/auth/csrf`, `/auth/me` e a documentação OpenAPI são públicas; o restante de `/api/v1/**` exige sessão; qualquer outra rota é negada.
+- Rotas: só `/auth/register`, `/auth/login`, `/auth/csrf`, `/auth/me`, `/auth/forgot-password`, `/auth/reset-password`, `GET /invites/{token}` (descrição do convite, sem dados sensíveis) e a documentação OpenAPI são públicas; o restante de `/api/v1/**` exige sessão; qualquer outra rota é negada.
 - **Multi-organização**: a organização ativa é um atributo de sessão **validado contra a tabela de associação** a cada requisição. IDs vindos do cliente só são aceitos em `POST /organizations/{id}/switch`, que verifica a associação. Todos os repositórios filtram por `organization_id`.
-- **RBAC** no backend via `OrganizationContext.require(MemberRole)`: Administrador (cadastra recursos, grupos, consulta auditoria), Operador (verificar agora; na Fase 3/4: reconhecer alertas e gerir incidentes), Visualizador (somente leitura).
+- **RBAC** no backend via `OrganizationContext.require(MemberRole)`: Administrador (cadastra recursos, grupos, membros/convites, canais externos, consulta auditoria), Operador (verificar agora, reconhecer alertas, gerir incidentes e manutenções), Visualizador (somente leitura; pode consultar e exportar relatórios).
+- **Membros**: a organização nunca fica sem administrador (troca de papel/remoção do último é recusada com 409). Convites: token exibido uma vez, hash no banco, 7 dias, uso único, vinculado ao e-mail; o aceite exige que o e-mail da conta coincida.
 
 ## Rate limiting
 
-`AuthRateLimitFilter`: janela fixa de 1 min por IP em `POST /auth/login` e `/auth/register` (20/min por padrão) → `429` com `Retry-After`. Em memória (uma instância); Redis previsto quando houver escala horizontal.
+`AuthRateLimitFilter`: janela fixa de 1 min por IP em `POST /auth/login`, `/auth/register`, `/auth/forgot-password` e `/auth/reset-password` (20/min por padrão) → `429` com `Retry-After`. Em memória (uma instância); Redis previsto quando houver escala horizontal.
 
 ## Proteção contra SSRF nas verificações
 
@@ -49,6 +51,14 @@ Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a 
 - Erros padronizados RFC 9457 (`application/problem+json`) com `code` estável; mensagens internas nunca vazam (500 genérico + log com correlation id).
 - `server.error.include-message/stacktrace: never`.
 
+## Integrações externas (Fase 5)
+
+- **Webhooks de saída** só para destinos previamente cadastrados por um administrador e aprovados pela **mesma política anti-SSRF das verificações** (`TargetValidator`, allowlist obrigatória, faixas privadas/metadados bloqueadas, sem redirecionamentos), validada na criação e repetida a cada envio (DNS pode mudar). O corpo da resposta do destino é descartado; só o código HTTP é registrado. O InfraWatch nunca atua como proxy.
+- Assinatura **HMAC-SHA256** do corpo (`X-InfraWatch-Signature`) quando o canal tem segredo; o segredo nunca é devolvido pela API (`hasSecret`).
+- **Envio externo desligado por padrão** (`INFRAWATCH_INTEGRATIONS_ENABLED=false`): entregas ficam `SKIPPED` e nada sai da máquina — adequado a desenvolvimento e testes. Os testes automatizados usam `JavaMailSender` simulado e um servidor HTTP interno; nenhuma notificação real é enviada.
+- Conteúdo das entregas: apenas título, mensagem, severidade, tipo, link e identificadores — nunca cookies, tokens ou corpos de respostas monitoradas.
+- **Exportações**: isoladas por organização (404 fora dela), auditadas (`report.exported`), CSV com proteção contra *CSV injection*.
+
 ## Observabilidade segura
 
 - Actuator responde **apenas na porta de gerenciamento 8081**, que no Compose é publicada só em `127.0.0.1`. Não há endpoints administrativos na porta pública.
@@ -56,11 +66,11 @@ Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a 
 
 ## Auditoria
 
-`audit_logs` registra cadastro, login, criação/alteração/remoção de recursos e grupos com usuário, organização, IP e detalhes. Consultável por administradores em `GET /api/v1/audit`.
+`audit_logs` registra cadastro, login, recursos, grupos, alertas, incidentes, manutenções, membros/convites, canais externos, exportações e redefinições de senha, com usuário, organização, IP e detalhes. Consultável por administradores em `GET /api/v1/audit` com filtros (ação, usuário, intervalo, busca) e nome do usuário resolvido.
 
 ## Checklist para produção (fora do escopo da Fase 1)
 
 - TLS na borda e `INFRAWATCH_COOKIE_SECURE=true`.
 - `INFRAWATCH_ALLOWED_HOSTS` restrito aos destinos reais.
 - Segredos via variáveis de ambiente/secret manager (não há segredos no repositório).
-- Spring Session (JDBC/Redis) para sessões persistentes.
+- Rate limit distribuído (Redis) se houver várias instâncias — as sessões já são persistentes (Spring Session JDBC).

@@ -12,7 +12,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -48,8 +48,14 @@ public abstract class AbstractIntegrationTest {
         return applicationContext.getBean(type);
     }
 
-    /** Sessão autenticada + identificadores úteis. */
-    public record Session(MockHttpSession http, UUID userId, UUID organizationId, String email) {}
+    /** Nome do cookie de sessão (igual ao configurado em server.servlet.session.cookie.name). */
+    public static final String SESSION_COOKIE = "INFRAWATCH_SESSION";
+
+    /**
+     * Sessão autenticada + identificadores úteis. Guardamos o cookie (não o MockHttpSession) porque, com o Spring
+     * Session JDBC, a sessão real vive no banco e é identificada pelo cookie emitido na resposta.
+     */
+    public record Session(Cookie cookie, UUID userId, UUID organizationId, String email) {}
 
     protected Session register(String fullName, String organizationName) throws Exception {
         String email = "user-" + UUID.randomUUID().toString().substring(0, 8) + "@teste.local";
@@ -77,11 +83,12 @@ public abstract class AbstractIntegrationTest {
     }
 
     private Session toSession(MvcResult result, String email) throws Exception {
-        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        Cookie cookie = result.getResponse().getCookie(SESSION_COOKIE);
+        if (cookie == null) throw new IllegalStateException("Resposta de autenticação sem cookie " + SESSION_COOKIE);
         String body = result.getResponse().getContentAsString();
         UUID userId = UUID.fromString(JsonPath.read(body, "$.id"));
         UUID orgId = UUID.fromString(JsonPath.read(body, "$.currentOrganization.id"));
-        return new Session(session, userId, orgId, email);
+        return new Session(new Cookie(SESSION_COOKIE, cookie.getValue()), userId, orgId, email);
     }
 
     protected String createResource(Session session, String name, String url) throws Exception {
@@ -89,7 +96,7 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected String createResource(Session session, String name, String url, String checkJson) throws Exception {
-        MvcResult result = mvc.perform(post("/api/v1/resources").with(csrf()).session(session.http())
+        MvcResult result = mvc.perform(post("/api/v1/resources").with(csrf()).cookie(session.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"%s","type":"HTTP","targetUrl":"%s","environment":"DEVELOPMENT","check":%s}
@@ -100,7 +107,7 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected String getJson(Session session, String path) throws Exception {
-        return mvc.perform(get(path).session(session.http()))
+        return mvc.perform(get(path).cookie(session.cookie()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }

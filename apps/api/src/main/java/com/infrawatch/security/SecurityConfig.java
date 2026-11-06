@@ -83,7 +83,9 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login",
+                        "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/invites/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/agents/ingest").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf", "/api/v1/auth/me").permitAll()
                 .requestMatchers("/api/v1/docs/**", "/api/v1/openapi/**", "/swagger-ui/**").permitAll()

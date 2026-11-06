@@ -84,6 +84,11 @@ export function LoginPage() {
         </Button>
       </form>
       <p className="text-center text-sm text-muted-foreground">
+        <Link to="/recuperar-senha" className="font-medium text-primary hover:underline">
+          Esqueci minha senha
+        </Link>
+      </p>
+      <p className="text-center text-sm text-muted-foreground">
         Ainda não tem conta?{" "}
         <Link to="/cadastro" className="font-medium text-primary hover:underline">
           Criar conta e organização

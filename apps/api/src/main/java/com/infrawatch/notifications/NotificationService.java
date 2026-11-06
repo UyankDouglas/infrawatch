@@ -4,6 +4,7 @@ import com.infrawatch.alerts.AlertEnums.Severity;
 import com.infrawatch.common.events.DomainEvents.NotificationCreated;
 import com.infrawatch.organization.OrganizationMember;
 import com.infrawatch.organization.OrganizationMemberRepository;
+import com.infrawatch.integrations.DeliveryService;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -33,12 +34,14 @@ public class NotificationService {
     private final NotificationRepository notifications;
     private final OrganizationMemberRepository members;
     private final ApplicationEventPublisher events;
+    private final DeliveryService deliveries;
 
     public NotificationService(NotificationRepository notifications, OrganizationMemberRepository members,
-                               ApplicationEventPublisher events) {
+                               ApplicationEventPublisher events, DeliveryService deliveries) {
         this.notifications = notifications;
         this.members = members;
         this.events = events;
+        this.deliveries = deliveries;
     }
 
     /** Envia a um único usuário (ex.: atribuição de incidente). */
@@ -60,6 +63,8 @@ public class NotificationService {
     public int notifyOrganization(UUID organizationId, Notification.Type type, Severity severity, String title,
                                   String message, String link, UUID resourceId, UUID alertEventId, String dedupeKey) {
         List<OrganizationMember> recipients = members.findByOrganizationIdOrderByCreatedAtAsc(organizationId);
+        // Canais externos (e-mail/webhook): uma entrega por canal elegível, na mesma transação (outbox).
+        deliveries.enqueue(organizationId, type.name(), severity, title, message, link, resourceId, dedupeKey);
         int created = 0;
         for (OrganizationMember m : recipients) {
             UUID userId = m.getUser().getId();

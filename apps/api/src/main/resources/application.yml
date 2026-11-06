@@ -21,6 +21,21 @@ spring:
   threads:
     virtual:
       enabled: true
+  session:
+    timeout: 12h
+    jdbc:
+      initialize-schema: never
+      table-name: SPRING_SESSION
+  mail:
+    host: ${INFRAWATCH_SMTP_HOST:}
+    port: ${INFRAWATCH_SMTP_PORT:1025}
+    username: ${INFRAWATCH_SMTP_USERNAME:}
+    password: ${INFRAWATCH_SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${INFRAWATCH_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${INFRAWATCH_SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
   task:
     scheduling:
       pool:
@@ -50,9 +65,34 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      # SMTP é opcional: um servidor de e-mail indisponível não deve derrubar o health check da API.
+      enabled: false
   info:
     env:
       enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        infrawatch.engine.checks.duration: true
+    tags:
+      application: infrawatch-api
+  tracing:
+    sampling:
+      probability: ${INFRAWATCH_TRACING_SAMPLING:0.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${INFRAWATCH_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+    resource-attributes:
+      service.name: infrawatch-api
 
 springdoc:
   api-docs:
@@ -62,6 +102,7 @@ springdoc:
 
 infrawatch:
   security:
+    cookie-secure: ${INFRAWATCH_COOKIE_SECURE:false}
     cors-allowed-origins: ${INFRAWATCH_CORS_ORIGINS:http://localhost:5174}
     rate-limit:
       auth-requests-per-minute: 20
@@ -86,6 +127,13 @@ infrawatch:
     min-ingest-spacing: 5s
     max-clock-skew: 5m
     stale-after-multiplier: 3
+  integrations:
+    dispatch-enabled: ${INFRAWATCH_INTEGRATIONS_ENABLED:false}
+    base-url: ${INFRAWATCH_BASE_URL:http://localhost:5174}
+    from-address: ${INFRAWATCH_MAIL_FROM:infrawatch@localhost}
+    max-attempts: 5
+    expire-after: 6h
+    webhook-timeout: 10s
   seed:
     enabled: ${INFRAWATCH_SEED_ENABLED:false}
     demo-base-url: ${INFRAWATCH_DEMO_BASE_URL:http://localhost}

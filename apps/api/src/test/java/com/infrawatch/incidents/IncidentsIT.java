@@ -65,9 +65,9 @@ class IncidentsIT extends AbstractIntegrationTest {
         assertThat(JsonPath.<String>read(list, "$.items[0].alertEventId")).isNotNull();
         String id = JsonPath.read(list, "$.items[0].id");
 
-        mvc.perform(get("/api/v1/notifications").session(s.http()))
+        mvc.perform(get("/api/v1/notifications").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[?(@.type=='INCIDENT_CREATED')]", hasSize(1)));
-        mvc.perform(get("/api/v1/dashboard/overview").session(s.http()))
+        mvc.perform(get("/api/v1/dashboard/overview").cookie(s.cookie()))
                 .andExpect(jsonPath("$.activeIncidents").value(1))
                 .andExpect(jsonPath("$.recentIncidents[0].id").value(id));
 
@@ -88,7 +88,7 @@ class IncidentsIT extends AbstractIntegrationTest {
         User op = users.save(new User("op-" + System.nanoTime() + "@teste.local", encoder.encode("SenhaForte#2026"), "Otávio"));
         members.save(new OrganizationMember(organizations.findById(s.organizationId()).orElseThrow(), op, MemberRole.OPERATOR));
 
-        String created = mvc.perform(post("/api/v1/incidents").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        String created = mvc.perform(post("/api/v1/incidents").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Lentidão relatada\",\"description\":\"Usuários relatam lentidão\",\"severity\":\"HIGH\",\"resourceId\":\"%s\",\"assigneeId\":\"%s\"}".formatted(rid, op.getId())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.origin").value("MANUAL"))
@@ -97,33 +97,33 @@ class IncidentsIT extends AbstractIntegrationTest {
         String id = JsonPath.read(created, "$.id");
 
         Session opSession = login(op.getEmail(), "SenhaForte#2026");
-        mvc.perform(get("/api/v1/notifications").session(opSession.http()))
+        mvc.perform(get("/api/v1/notifications").cookie(opSession.cookie()))
                 .andExpect(jsonPath("$.items[?(@.type=='INCIDENT_ASSIGNED')]", hasSize(1)));
 
         // Recuperação do recurso NÃO resolve incidente manual
         fail(rid);
         ok(rid);
-        mvc.perform(get("/api/v1/incidents/" + id).session(s.http())).andExpect(jsonPath("$.incident.status").value("OPEN"));
+        mvc.perform(get("/api/v1/incidents/" + id).cookie(s.cookie())).andExpect(jsonPath("$.incident.status").value("OPEN"));
 
-        mvc.perform(post("/api/v1/incidents/" + id + "/comments").with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/comments").with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"body\":\"Analisando logs\"}"))
                 .andExpect(status().isCreated());
-        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"ACKNOWLEDGED\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.acknowledgedAt").exists());
-        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"CLOSED\"}"))
                 .andExpect(status().isConflict());
-        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"INVESTIGATING\",\"note\":\"Causa provável: pool de conexões\"}"))
                 .andExpect(status().isOk());
-        mvc.perform(patch("/api/v1/incidents/" + id).with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/api/v1/incidents/" + id).with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cause\":\"Pool de conexões esgotado\",\"severity\":\"WARNING\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.severity").value("WARNING"));
-        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).session(opSession.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).cookie(opSession.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"RESOLVED\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.resolvedAt").exists()).andExpect(jsonPath("$.durationSeconds").isNumber());
-        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/status").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"CLOSED\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CLOSED"));
 
@@ -133,10 +133,10 @@ class IncidentsIT extends AbstractIntegrationTest {
         assertThat(JsonPath.<Integer>read(detail, "$.incident.commentCount")).isEqualTo(1);
         assertThat(JsonPath.<List<String>>read(detail, "$.allowedTransitions")).isEmpty();
 
-        mvc.perform(get("/api/v1/incidents/summary").session(s.http()))
+        mvc.perform(get("/api/v1/incidents/summary").cookie(s.cookie()))
                 .andExpect(jsonPath("$.resolvedLast24h").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.mttrSeconds").isNumber());
-        mvc.perform(get("/api/v1/audit").session(s.http()))
+        mvc.perform(get("/api/v1/audit").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[*].action", hasItem("incident.status_changed")));
     }
 
@@ -145,28 +145,28 @@ class IncidentsIT extends AbstractIntegrationTest {
     void isolationRbacAndOptOut() throws Exception {
         Session a = register("Admin A", "Org Inc A");
         Session b = register("Admin B", "Org Inc B");
-        String id = JsonPath.read(mvc.perform(post("/api/v1/incidents").with(csrf()).session(a.http()).contentType(MediaType.APPLICATION_JSON)
+        String id = JsonPath.read(mvc.perform(post("/api/v1/incidents").with(csrf()).cookie(a.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Só de A\",\"severity\":\"INFO\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
-        mvc.perform(get("/api/v1/incidents/" + id).session(b.http())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/incidents").session(b.http())).andExpect(jsonPath("$.totalItems").value(0));
+        mvc.perform(get("/api/v1/incidents/" + id).cookie(b.cookie())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/incidents").cookie(b.cookie())).andExpect(jsonPath("$.totalItems").value(0));
 
         User viewer = users.save(new User("v-" + System.nanoTime() + "@teste.local", encoder.encode("SenhaForte#2026"), "Vera"));
         members.save(new OrganizationMember(organizations.findById(a.organizationId()).orElseThrow(), viewer, MemberRole.VIEWER));
         Session v = login(viewer.getEmail(), "SenhaForte#2026");
-        mvc.perform(get("/api/v1/incidents/" + id).session(v.http())).andExpect(status().isOk());
-        mvc.perform(post("/api/v1/incidents").with(csrf()).session(v.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(get("/api/v1/incidents/" + id).cookie(v.cookie())).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/incidents").with(csrf()).cookie(v.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"x\",\"severity\":\"INFO\"}")).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/incidents/" + id + "/comments").with(csrf()).session(v.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/incidents/" + id + "/comments").with(csrf()).cookie(v.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"body\":\"x\"}")).andExpect(status().isForbidden());
 
-        String rid = JsonPath.read(mvc.perform(post("/api/v1/resources").with(csrf()).session(a.http()).contentType(MediaType.APPLICATION_JSON)
+        String rid = JsonPath.read(mvc.perform(post("/api/v1/resources").with(csrf()).cookie(a.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sem incidente\",\"type\":\"HTTP\",\"targetUrl\":\"http://localhost:9101/health\",\"environment\":\"DEVELOPMENT\",\"autoIncident\":false,\"check\":{\"intervalSeconds\":30,\"failureThreshold\":1}}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.autoIncident").value(false))
                 .andReturn().getResponse().getContentAsString(), "$.id");
         fail(UUID.fromString(rid));
-        mvc.perform(get("/api/v1/incidents?active=true&resourceId=" + rid).session(a.http())).andExpect(jsonPath("$.totalItems").value(0));
+        mvc.perform(get("/api/v1/incidents?active=true&resourceId=" + rid).cookie(a.cookie())).andExpect(jsonPath("$.totalItems").value(0));
         // mas o alerta de indisponibilidade continua existindo
-        mvc.perform(get("/api/v1/alerts?active=true&resourceId=" + rid).session(a.http())).andExpect(jsonPath("$.totalItems").value(1));
+        mvc.perform(get("/api/v1/alerts?active=true&resourceId=" + rid).cookie(a.cookie())).andExpect(jsonPath("$.totalItems").value(1));
     }
 }

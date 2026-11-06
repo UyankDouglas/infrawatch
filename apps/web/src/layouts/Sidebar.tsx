@@ -22,7 +22,7 @@ const NAV = [
   { to: "/alertas", label: "Alertas", icon: BellRing },
   { to: "/incidentes", label: "Incidentes", icon: Siren },
   { to: "/manutencoes", label: "Manutenções", icon: Wrench },
-  { to: "/relatorios", label: "Relatórios", icon: ChartColumnBig, soon: "F5" },
+  { to: "/relatorios", label: "Relatórios", icon: ChartColumnBig },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -80,14 +80,6 @@ export function Sidebar({ collapsed, onToggle, mobile }: Props) {
             >
               <item.icon className="size-4 shrink-0" aria-hidden />
               {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-              {!collapsed && item.soon && (
-                <span
-                  className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
-                  title="Fase futura"
-                >
-                  {item.soon}
-                </span>
-              )}
             </NavLink>
           );
           return (

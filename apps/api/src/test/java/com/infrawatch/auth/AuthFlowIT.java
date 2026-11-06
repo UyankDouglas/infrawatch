@@ -18,7 +18,7 @@ class AuthFlowIT extends AbstractIntegrationTest {
     @DisplayName("cadastro cria usuário + organização e autentica a sessão")
     void registerCreatesUserAndOrganization() throws Exception {
         Session s = register("Maria Silva", "maria-" + System.nanoTime() + "@teste.local", "SenhaForte#2026", "ACME Ltda");
-        mvc.perform(get("/api/v1/auth/me").session(s.http()))
+        mvc.perform(get("/api/v1/auth/me").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(s.email()))
                 .andExpect(jsonPath("$.currentOrganization.name").value("ACME Ltda"))
@@ -66,8 +66,8 @@ class AuthFlowIT extends AbstractIntegrationTest {
     @Test
     void logoutInvalidatesSession() throws Exception {
         Session s = register("Carlos", "Org C");
-        mvc.perform(post("/api/v1/auth/logout").with(csrf()).session(s.http())).andExpect(status().isNoContent());
-        mvc.perform(get("/api/v1/resources").session(s.http())).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/logout").with(csrf()).cookie(s.cookie())).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/resources").cookie(s.cookie())).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -81,7 +81,7 @@ class AuthFlowIT extends AbstractIntegrationTest {
     @DisplayName("mutations sem token CSRF são recusadas")
     void mutationsRequireCsrf() throws Exception {
         Session s = register("Bia", "Org B");
-        mvc.perform(post("/api/v1/resources").session(s.http()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(post("/api/v1/resources").cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("csrf_invalid"));
     }

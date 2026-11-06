@@ -47,7 +47,7 @@ class AlertEngineIT extends AbstractIntegrationTest {
     @DisplayName("novas organizações recebem regras padrão para métricas coletadas")
     void defaultRulesAreCreated() throws Exception {
         Session s = register("Admin", "Org Regras Padrão");
-        mvc.perform(get("/api/v1/alert-rules").session(s.http()))
+        mvc.perform(get("/api/v1/alert-rules").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(7)))
                 .andExpect(jsonPath("$[?(@.metric=='STATUS_DOWN')].severity").value("CRITICAL"));
@@ -74,23 +74,23 @@ class AlertEngineIT extends AbstractIntegrationTest {
         String alertId = JsonPath.read(body, "$.items[0].id");
 
         // notificações: indisponível + alerta disparado (uma de cada para o único membro)
-        mvc.perform(get("/api/v1/notifications").session(s.http()))
+        mvc.perform(get("/api/v1/notifications").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[?(@.type=='RESOURCE_DOWN')]", hasSize(1)))
                 .andExpect(jsonPath("$.items[?(@.type=='ALERT_TRIGGERED')]", hasSize(1)));
-        mvc.perform(get("/api/v1/notifications/unread-count").session(s.http()))
+        mvc.perform(get("/api/v1/notifications/unread-count").cookie(s.cookie()))
                 .andExpect(jsonPath("$.unread").value(greaterThanOrEqualTo(2)));
 
         // dashboard reflete o alerta ativo
-        mvc.perform(get("/api/v1/dashboard/overview").session(s.http()))
+        mvc.perform(get("/api/v1/dashboard/overview").cookie(s.cookie()))
                 .andExpect(jsonPath("$.activeAlerts").value(1))
                 .andExpect(jsonPath("$.recentAlerts[0].id").value(alertId));
 
         ok(rid, 40); // recovery_threshold = 1 → UP
-        mvc.perform(get("/api/v1/alerts/" + alertId).session(s.http()))
+        mvc.perform(get("/api/v1/alerts/" + alertId).cookie(s.cookie()))
                 .andExpect(jsonPath("$.status").value("RESOLVED"))
                 .andExpect(jsonPath("$.resolution").value("CONDITION_CLEARED"));
-        mvc.perform(get("/api/v1/notifications").session(s.http()))
+        mvc.perform(get("/api/v1/notifications").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[?(@.type=='RESOURCE_RECOVERED')]", hasSize(1)))
                 .andExpect(jsonPath("$.items[?(@.type=='ALERT_RESOLVED')]", hasSize(1)));
         assertThat(JsonPath.<Integer>read(activeAlerts(s), "$.totalItems")).isZero();
@@ -104,28 +104,28 @@ class AlertEngineIT extends AbstractIntegrationTest {
         fail(rid);
         String alertId = JsonPath.read(activeAlerts(s), "$.items[0].id");
 
-        mvc.perform(post("/api/v1/alerts/" + alertId + "/acknowledge").with(csrf()).session(s.http())
+        mvc.perform(post("/api/v1/alerts/" + alertId + "/acknowledge").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"Investigando\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACKNOWLEDGED"))
                 .andExpect(jsonPath("$.acknowledgedByName").value("Admin"))
                 .andExpect(jsonPath("$.acknowledgeNote").value("Investigando"));
-        mvc.perform(post("/api/v1/alerts/" + alertId + "/acknowledge").with(csrf()).session(s.http()))
+        mvc.perform(post("/api/v1/alerts/" + alertId + "/acknowledge").with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isConflict());
 
-        mvc.perform(post("/api/v1/alerts/" + alertId + "/resolve").with(csrf()).session(s.http())
+        mvc.perform(post("/api/v1/alerts/" + alertId + "/resolve").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"Falso positivo\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESOLVED"))
                 .andExpect(jsonPath("$.resolution").value("MANUAL"));
 
-        mvc.perform(get("/api/v1/audit").session(s.http()))
+        mvc.perform(get("/api/v1/audit").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[?(@.action=='alert.acknowledged')]", hasSize(1)))
                 .andExpect(jsonPath("$.items[?(@.action=='alert.resolved')]", hasSize(1)));
 
         Session other = register("Outra", "Org Ack Outra");
-        mvc.perform(get("/api/v1/alerts/" + alertId).session(other.http())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/alerts").session(other.http())).andExpect(jsonPath("$.totalItems").value(0));
+        mvc.perform(get("/api/v1/alerts/" + alertId).cookie(other.cookie())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/alerts").cookie(other.cookie())).andExpect(jsonPath("$.totalItems").value(0));
     }
 
     @Test
@@ -152,11 +152,11 @@ class AlertEngineIT extends AbstractIntegrationTest {
     @DisplayName("regras de CPU/memória/disco avaliam amostras do agente; falta de dados abre alerta próprio")
     void agentMetricRulesAndNoData() throws Exception {
         Session s = register("Admin", "Org Agente Alertas");
-        String resourceId = JsonPath.read(mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http())
+        String resourceId = JsonPath.read(mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Servidor\",\"type\":\"AGENT_SERVER\",\"targetUrl\":\"srv-01\",\"environment\":\"PRODUCTION\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
-        String token = JsonPath.read(mvc.perform(post("/api/v1/agents/register").with(csrf()).session(s.http())
+        String token = JsonPath.read(mvc.perform(post("/api/v1/agents/register").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resourceId\":\"%s\",\"name\":\"ag\",\"intervalSeconds\":10}".formatted(resourceId)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.token");
@@ -183,14 +183,14 @@ class AlertEngineIT extends AbstractIntegrationTest {
     @DisplayName("criação/edição de regras valida limites; desativar resolve alertas abertos")
     void ruleCrudValidation() throws Exception {
         Session s = register("Admin", "Org Regras CRUD");
-        mvc.perform(post("/api/v1/alert-rules").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/alert-rules").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"CPU sem limite\",\"metric\":\"CPU\",\"severity\":\"HIGH\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("rule_threshold_required"));
-        mvc.perform(post("/api/v1/alert-rules").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/alert-rules").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"CPU 150\",\"metric\":\"CPU\",\"severity\":\"HIGH\",\"operator\":\"GT\",\"threshold\":150}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("rule_threshold_range"));
 
-        String ruleId = JsonPath.read(mvc.perform(post("/api/v1/alert-rules").with(csrf()).session(s.http())
+        String ruleId = JsonPath.read(mvc.perform(post("/api/v1/alert-rules").with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Qualquer falha\",\"metric\":\"STATUS_DOWN\",\"severity\":\"WARNING\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
@@ -200,16 +200,16 @@ class AlertEngineIT extends AbstractIntegrationTest {
         // duas regras STATUS_DOWN (padrão + nova) → dois alertas distintos, cada um único por regra
         assertThat(JsonPath.<Integer>read(activeAlerts(s), "$.totalItems")).isEqualTo(2);
 
-        mvc.perform(patch("/api/v1/alert-rules/" + ruleId).with(csrf()).session(s.http())
+        mvc.perform(patch("/api/v1/alert-rules/" + ruleId).with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":false}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false));
         assertThat(JsonPath.<Integer>read(activeAlerts(s), "$.totalItems")).isEqualTo(1);
 
-        mvc.perform(delete("/api/v1/alert-rules/" + ruleId).with(csrf()).session(s.http())).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/v1/alert-rules/" + ruleId).with(csrf()).cookie(s.cookie())).andExpect(status().isNoContent());
 
         // visualizador não gerencia regras
         Session viewerOrg = register("Admin2", "Org Viewer");
-        mvc.perform(post("/api/v1/alert-rules").with(csrf()).session(viewerOrg.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/alert-rules").with(csrf()).cookie(viewerOrg.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"ok\",\"metric\":\"STATUS_DOWN\",\"severity\":\"INFO\"}"))
                 .andExpect(status().isCreated());
     }

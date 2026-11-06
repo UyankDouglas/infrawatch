@@ -37,7 +37,7 @@ class ResourceApiIT extends AbstractIntegrationTest {
         String id = createResource(s, "Serviço A", "http://localhost:9101/health",
                 "{\"intervalSeconds\":60,\"timeoutMs\":2000,\"degradedLatencyMs\":500,\"failureThreshold\":2}");
 
-        mvc.perform(get("/api/v1/resources/" + id).session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + id).cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Serviço A"))
                 .andExpect(jsonPath("$.status").value("PENDING"))
@@ -46,7 +46,7 @@ class ResourceApiIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.check.failureThreshold").value(2))
                 .andExpect(jsonPath("$.check.degradedLatencyMs").value(500));
 
-        mvc.perform(patch("/api/v1/resources/" + id).with(csrf()).session(s.http())
+        mvc.perform(patch("/api/v1/resources/" + id).with(csrf()).cookie(s.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Serviço A2\",\"tags\":[\"Core\",\"api\"],\"enabled\":false}"))
                 .andExpect(status().isOk())
@@ -54,15 +54,15 @@ class ResourceApiIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.enabled").value(false))
                 .andExpect(jsonPath("$.tags[0]").value("core"));
 
-        mvc.perform(get("/api/v1/resources").session(s.http()).param("search", "a2"))
+        mvc.perform(get("/api/v1/resources").cookie(s.cookie()).param("search", "a2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.totalItems").value(1));
 
-        mvc.perform(delete("/api/v1/resources/" + id).with(csrf()).session(s.http())).andExpect(status().isNoContent());
-        mvc.perform(get("/api/v1/resources/" + id).session(s.http())).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/resources/" + id).with(csrf()).cookie(s.cookie())).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/resources/" + id).cookie(s.cookie())).andExpect(status().isNotFound());
 
-        mvc.perform(get("/api/v1/audit").session(s.http()))
+        mvc.perform(get("/api/v1/audit").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].action").value("resource.deleted"));
     }
@@ -71,7 +71,7 @@ class ResourceApiIT extends AbstractIntegrationTest {
     void rejectsDuplicateNameInSameOrganization() throws Exception {
         Session s = register("Admin", "Org Dup");
         createResource(s, "Mesmo nome", "http://localhost:9101/health");
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"mesmo NOME\",\"type\":\"HTTP\",\"targetUrl\":\"http://localhost:9102/health\",\"environment\":\"DEVELOPMENT\"}"))
                 .andExpect(status().isConflict());
     }
@@ -88,7 +88,7 @@ class ResourceApiIT extends AbstractIntegrationTest {
                 {"http://user:senha@localhost/", "target_userinfo"},
         };
         for (String[] c : cases) {
-            mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+            mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"X %s\",\"type\":\"HTTP\",\"targetUrl\":\"%s\",\"environment\":\"DEVELOPMENT\"}"
                                     .formatted(c[1], c[0])))
                     .andExpect(status().isBadRequest())
@@ -99,17 +99,17 @@ class ResourceApiIT extends AbstractIntegrationTest {
     @Test
     void validatesCheckConfiguration() throws Exception {
         Session s = register("Admin", "Org Val");
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Rápido\",\"type\":\"HTTP\",\"targetUrl\":\"http://localhost:9101/\",\"environment\":\"DEVELOPMENT\",\"check\":{\"intervalSeconds\":5}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors['check.intervalSeconds']").exists());
 
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Timeout\",\"type\":\"HTTP\",\"targetUrl\":\"http://localhost:9101/\",\"environment\":\"DEVELOPMENT\",\"check\":{\"intervalSeconds\":30,\"timeoutMs\":30000}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("timeout_vs_interval"));
 
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"HTTPS\",\"type\":\"HTTPS\",\"targetUrl\":\"http://localhost:9101/\",\"environment\":\"DEVELOPMENT\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("target_scheme"));
@@ -122,23 +122,23 @@ class ResourceApiIT extends AbstractIntegrationTest {
         Session b = register("Admin B", "Org Isolada B");
         String id = createResource(a, "Recurso de A", "http://localhost:9101/health");
 
-        mvc.perform(get("/api/v1/resources").session(b.http()))
+        mvc.perform(get("/api/v1/resources").cookie(b.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalItems").value(0));
-        mvc.perform(get("/api/v1/resources/" + id).session(b.http())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/resources/" + id + "/checks").session(b.http())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/resources/" + id + "/history").session(b.http())).andExpect(status().isNotFound());
-        mvc.perform(patch("/api/v1/resources/" + id).with(csrf()).session(b.http())
+        mvc.perform(get("/api/v1/resources/" + id).cookie(b.cookie())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/resources/" + id + "/checks").cookie(b.cookie())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/resources/" + id + "/history").cookie(b.cookie())).andExpect(status().isNotFound());
+        mvc.perform(patch("/api/v1/resources/" + id).with(csrf()).cookie(b.cookie())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"hack\"}"))
                 .andExpect(status().isNotFound());
-        mvc.perform(delete("/api/v1/resources/" + id).with(csrf()).session(b.http())).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/resources/" + id).with(csrf()).cookie(b.cookie())).andExpect(status().isNotFound());
 
-        mvc.perform(get("/api/v1/dashboard/overview").session(b.http()))
+        mvc.perform(get("/api/v1/dashboard/overview").cookie(b.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalResources").value(0));
 
         // B não consegue "trocar" para a organização de A
-        mvc.perform(post("/api/v1/organizations/" + a.organizationId() + "/switch").with(csrf()).session(b.http()))
+        mvc.perform(post("/api/v1/organizations/" + a.organizationId() + "/switch").with(csrf()).cookie(b.cookie()))
                 .andExpect(status().isForbidden());
     }
 
@@ -157,21 +157,21 @@ class ResourceApiIT extends AbstractIntegrationTest {
         Session o = login(operator.getEmail(), "SenhaForte#2026");
         String body = "{\"name\":\"Novo\",\"type\":\"HTTP\",\"targetUrl\":\"http://localhost:9101/\",\"environment\":\"DEVELOPMENT\"}";
 
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(v.http()).contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(v.cookie()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/resources").with(csrf()).session(o.http()).contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/resources").with(csrf()).cookie(o.cookie()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/audit").session(v.http())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/audit").cookie(v.cookie())).andExpect(status().isForbidden());
 
         String id = createResource(admin, "Recurso", "http://localhost:1/health");
-        mvc.perform(get("/api/v1/resources/" + id).session(v.http())).andExpect(status().isOk());
-        mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).session(v.http())).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).session(o.http()))
+        mvc.perform(get("/api/v1/resources/" + id).cookie(v.cookie())).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).cookie(v.cookie())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).cookie(o.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true))
                 .andExpect(jsonPath("$.execution.success").value(false));
 
-        mvc.perform(get("/api/v1/organizations/current/members").session(v.http()))
+        mvc.perform(get("/api/v1/organizations/current/members").cookie(v.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)));
     }

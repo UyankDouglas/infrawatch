@@ -48,7 +48,7 @@ class MaintenanceIT extends AbstractIntegrationTest {
         assertThat(JsonPath.<Integer>read(getJson(s, "/api/v1/alerts?active=true"), "$.totalItems")).isEqualTo(1);
 
         Instant now = Instant.now();
-        String created = mvc.perform(post("/api/v1/maintenances").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        String created = mvc.perform(post("/api/v1/maintenances").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Troca de disco\",\"reason\":\"Upgrade\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"resourceIds\":[\"%s\"]}"
                                 .formatted(now.minusSeconds(5), now.plusSeconds(3600), rid)))
                 .andExpect(status().isCreated())
@@ -69,22 +69,22 @@ class MaintenanceIT extends AbstractIntegrationTest {
         assertThat(statusOf(s, rid)).isEqualTo("MAINTENANCE");
         assertThat(JsonPath.<Integer>read(getJson(s, "/api/v1/alerts?active=true"), "$.totalItems")).isZero();
         assertThat(JsonPath.<Integer>read(getJson(s, "/api/v1/incidents"), "$.totalItems")).isEqualTo((int) incidentsBefore);
-        mvc.perform(get("/api/v1/resources/" + rid + "/checks").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + rid + "/checks").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[0].success").value(false));
 
         // notificação de agendamento
-        mvc.perform(get("/api/v1/notifications").session(s.http()))
+        mvc.perform(get("/api/v1/notifications").cookie(s.cookie()))
                 .andExpect(jsonPath("$.items[?(@.type=='MAINTENANCE_SCHEDULED')]", hasSize(1)));
 
         // dashboard: manutenção listada; disponibilidade exclui manutenção por padrão
-        mvc.perform(get("/api/v1/dashboard/overview").session(s.http()).param("period", "1h"))
+        mvc.perform(get("/api/v1/dashboard/overview").cookie(s.cookie()).param("period", "1h"))
                 .andExpect(jsonPath("$.upcomingMaintenances[0].id").value(windowId))
                 .andExpect(jsonPath("$.maintenanceMode").value("excluded"));
-        mvc.perform(get("/api/v1/resources/" + rid + "/metrics").session(s.http()).param("maintenance", "counted"))
+        mvc.perform(get("/api/v1/resources/" + rid + "/metrics").cookie(s.cookie()).param("maintenance", "counted"))
                 .andExpect(jsonPath("$.availabilityNote").value(org.hamcrest.Matchers.containsString("CONTADOS")));
 
         // encerrar antecipadamente → aguardando verificação; próxima verificação define o estado real
-        mvc.perform(post("/api/v1/maintenances/" + windowId + "/finish").with(csrf()).session(s.http()))
+        mvc.perform(post("/api/v1/maintenances/" + windowId + "/finish").with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.finishReason").value("ENDED_EARLY"));
@@ -104,22 +104,22 @@ class MaintenanceIT extends AbstractIntegrationTest {
         ok(rid);
         Instant now = Instant.now();
 
-        mvc.perform(post("/api/v1/maintenances").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/maintenances").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Inválida\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"resourceIds\":[\"%s\"]}".formatted(now.plusSeconds(600), now.plusSeconds(60), rid)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("maintenance_period"));
-        mvc.perform(post("/api/v1/maintenances").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/maintenances").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Sem recursos\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"resourceIds\":[]}".formatted(now.plusSeconds(60), now.plusSeconds(600))))
                 .andExpect(status().isBadRequest());
 
-        String cancelId = JsonPath.read(mvc.perform(post("/api/v1/maintenances").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        String cancelId = JsonPath.read(mvc.perform(post("/api/v1/maintenances").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Cancelar\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"resourceIds\":[\"%s\"]}".formatted(now.plusSeconds(3600), now.plusSeconds(7200), rid)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("SCHEDULED"))
                 .andReturn().getResponse().getContentAsString(), "$.id");
-        mvc.perform(post("/api/v1/maintenances/" + cancelId + "/finish").with(csrf()).session(s.http()))
+        mvc.perform(post("/api/v1/maintenances/" + cancelId + "/finish").with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
         assertThat(statusOf(s, rid)).isEqualTo("UP");
 
-        String id = JsonPath.read(mvc.perform(post("/api/v1/maintenances").with(csrf()).session(s.http()).contentType(MediaType.APPLICATION_JSON)
+        String id = JsonPath.read(mvc.perform(post("/api/v1/maintenances").with(csrf()).cookie(s.cookie()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Curta\",\"startsAt\":\"%s\",\"endsAt\":\"%s\",\"resourceIds\":[\"%s\"]}".formatted(now.plusSeconds(1), now.plusSeconds(2), rid)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
         Thread.sleep(1200);
@@ -128,12 +128,12 @@ class MaintenanceIT extends AbstractIntegrationTest {
         Thread.sleep(1200);
         assertThat(service.completeDue(Instant.now())).isEqualTo(1);
         assertThat(statusOf(s, rid)).isEqualTo("PENDING");
-        mvc.perform(get("/api/v1/maintenances/" + id).session(s.http()))
+        mvc.perform(get("/api/v1/maintenances/" + id).cookie(s.cookie()))
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.finishReason").value("ENDED_ON_SCHEDULE"));
 
         Session other = register("Outra", "Org Agenda Outra");
-        mvc.perform(get("/api/v1/maintenances/" + id).session(other.http())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/maintenances").session(other.http())).andExpect(jsonPath("$", hasSize(0)));
+        mvc.perform(get("/api/v1/maintenances/" + id).cookie(other.cookie())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/maintenances").cookie(other.cookie())).andExpect(jsonPath("$", hasSize(0)));
     }
 }

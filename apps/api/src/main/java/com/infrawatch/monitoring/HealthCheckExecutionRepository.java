@@ -33,6 +33,45 @@ public interface HealthCheckExecutionRepository extends JpaRepository<HealthChec
         UUID getResourceId();
     }
 
+    interface ResourceLatencyStats {
+        UUID getResourceId();
+        long getTotal();
+        long getFailures();
+        Double getAvgResponseMs();
+        Integer getMaxResponseMs();
+        Double getP95ResponseMs();
+    }
+
+    @Query(value = """
+            SELECT resource_id AS resourceId, count(*) AS total, count(*) FILTER (WHERE NOT success) AS failures,
+                   avg(response_time_ms) FILTER (WHERE success) AS avgResponseMs,
+                   max(response_time_ms) FILTER (WHERE success) AS maxResponseMs,
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY response_time_ms) FILTER (WHERE success) AS p95ResponseMs
+              FROM health_check_executions
+             WHERE organization_id = :orgId AND started_at >= :from AND started_at < :to
+             GROUP BY resource_id
+            """, nativeQuery = true)
+    List<ResourceLatencyStats> latencyStatsPerResource(@Param("orgId") UUID organizationId, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query(value = """
+            SELECT * FROM health_check_executions
+             WHERE organization_id = :orgId AND started_at >= :from AND started_at < :to
+             ORDER BY started_at DESC LIMIT :limit
+            """, nativeQuery = true)
+    List<HealthCheckExecution> findRecentForOrganization(@Param("orgId") UUID organizationId, @Param("from") Instant from,
+                                                         @Param("to") Instant to, @Param("limit") int limit);
+
+    @Query("select r.id as id, r.name as name from MonitoredResource r where r.organizationId = :orgId")
+    List<IdName> resourceNameRows(@Param("orgId") UUID organizationId);
+
+    interface IdName { UUID getId(); String getName(); }
+
+    default java.util.Map<UUID, String> resourceNames(UUID organizationId) {
+        java.util.Map<UUID, String> m = new java.util.HashMap<>();
+        for (IdName r : resourceNameRows(organizationId)) m.put(r.getId(), r.getName());
+        return m;
+    }
+
     interface ResourceAverage {
         UUID getResourceId();
         Double getAvgResponseMs();

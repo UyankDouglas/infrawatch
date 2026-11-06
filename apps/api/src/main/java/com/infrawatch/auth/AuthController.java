@@ -1,6 +1,8 @@
 package com.infrawatch.auth;
 
 import com.infrawatch.auth.AuthDtos.CsrfResponse;
+import com.infrawatch.auth.AuthDtos.ForgotPasswordRequest;
+import com.infrawatch.auth.AuthDtos.ResetPasswordRequest;
 import com.infrawatch.auth.AuthDtos.LoginRequest;
 import com.infrawatch.auth.AuthDtos.MeResponse;
 import com.infrawatch.auth.AuthDtos.RegisterRequest;
@@ -35,9 +37,12 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final CurrentContextService context;
+    private final PasswordResetService passwordReset;
 
     public AuthController(AuthService authService, AuthenticationManager authenticationManager,
-                          SecurityContextRepository securityContextRepository, CurrentContextService context) {
+                          SecurityContextRepository securityContextRepository, CurrentContextService context,
+                          PasswordResetService passwordReset) {
+        this.passwordReset = passwordReset;
         this.authService = authService;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
@@ -75,6 +80,19 @@ public class AuthController {
         }
         SecurityContextHolder.clearContext();
         return ResponseEntity.noContent().build();
+    }
+
+    /** Resposta sempre igual, exista ou não a conta (não revela e-mails cadastrados). */
+    @PostMapping("/forgot-password")
+    public java.util.Map<String, String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+        passwordReset.requestReset(body.email());
+        return java.util.Map.of("message", "Se existir uma conta com este e-mail, enviaremos um link de redefinição.");
+    }
+
+    @PostMapping("/reset-password")
+    public java.util.Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+        passwordReset.reset(body.token(), body.password());
+        return java.util.Map.of("message", "Senha redefinida. Faça login com a nova senha.");
     }
 
     @GetMapping("/me")

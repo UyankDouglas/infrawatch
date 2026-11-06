@@ -8,7 +8,8 @@
 **Fase 2 — Métricas de infraestrutura (agente autorizado): CONCLUÍDA (2026-11-06).**
 **Fase 3 — Tempo real (WebSocket) e alertas: CONCLUÍDA (2026-11-06).**
 **Fase 4 — Incidentes e manutenções programadas: CONCLUÍDA (2026-11-06).**
-Próxima: **Fase 5 — Relatórios e administração**.
+**Fase 5 — Relatórios, exportações, integrações externas e administração: CONCLUÍDA (2026-11-06).**
+Próxima: **Fase 6 — Qualidade, segurança e entrega final**.
 
 ## Stack e versões escolhidas (verificadas no Maven Central / npm em 2026-11-06)
 
@@ -84,6 +85,21 @@ Próxima: **Fase 5 — Relatórios e administração**.
 - [x] Frontend: páginas **Incidentes** (KPIs, filtros, criar) e **Incidente** (timeline, comentários, ações de status, edição, responsável), **Manutenções** (próximas/em andamento, histórico, agendar com seleção de recursos, encerrar/cancelar); painel de incidentes/manutenções na página do recurso; opção "abrir incidente automaticamente" no formulário; eventos `incident.*` e `maintenance.*` em tempo real
 - [x] Docs: alerts-and-incidents (incidentes e manutenções implementados), architecture, decisions 26–29, README
 
+## Funcionalidades concluídas (Fase 5)
+
+- [x] Migração `V5__relatorios_integracoes_admin.sql`: `report_exports`, `notification_channels`, `notification_deliveries` (outbox, único por canal×dedupe_key), `organization_invites`, `password_reset_tokens`, `SPRING_SESSION`/`SPRING_SESSION_ATTRIBUTES`
+- [x] **Spring Session JDBC** (`SessionConfig` com cookie explícito `INFRAWATCH_SESSION`, HttpOnly, SameSite=Lax); base de testes passou a usar o cookie real
+- [x] `ReportService`: disponibilidade por recurso (modo de manutenção explícito, fórmula em texto), tempo indisponível/em manutenção, verificações/falhas, latência média/p95/máx (SQL `percentile_cont`), incidentes, MTTR, MTTA, MTBF (nota quando < 2 incidentes); relatório de incidentes; relatório do recurso (latência + CPU/mem/disco por granularidade)
+- [x] `ExportService`: CSV (BOM, `;`, anti CSV-injection) e XLSX (POI) para disponibilidade, incidentes e verificações (≤ 20 000), histórico em `report_exports` (bytea), download com `Content-Disposition`, auditoria `report.exported`
+- [x] Canais externos: `NotificationChannel` (EMAIL/WEBHOOK, severidade mínima, tipos de evento, segredo HMAC), `DeliveryService` enfileira na transação de `notifyOrganization`, `DeliveryDispatcher` (10 s, `SKIP LOCKED`, backoff 30 s→1 h, 5 tentativas, expiração 6 h, `SKIPPED` quando `dispatch-enabled=false`), SMTP via `JavaMailSender`, webhook POST JSON assinado (`X-InfraWatch-Signature`) com `TargetValidator` na criação e no envio; teste de canal; métricas `deliveries.sent/failed`
+- [x] Membros: alterar perfil, remover (último admin protegido), convites (token `inv_` exibido uma vez, hash, 7 d, uso único, e-mail coincidente), aceite por cadastro (`inviteToken`) ou logado (`/invites/{token}/accept`), revogação; auditoria `member.*`
+- [x] Recuperação de senha (`forgot-password`/`reset-password`, token `pwd_` 1 h, resposta neutra, e-mail quando habilitado ou link no log), rate limit incluído
+- [x] Auditoria com filtros (ação, usuário, intervalo, busca) + `userName` + `GET /audit/actions`
+- [x] Observabilidade: `micrometer-registry-prometheus` (`/actuator/prometheus`), histogramas HTTP/checks, `spring-boot-starter-opentelemetry` com amostragem 0 por padrão; perfil Compose `observability` (Prometheus, Grafana com datasource + dashboard provisionados, Mailpit, OTel Collector); health de mail desligado
+- [x] Demo-services: receptor `POST /__webhook` + `GET /__webhook/received`
+- [x] Frontend: página **Relatórios** (filtros período/manutenção/grupo, KPIs, barras de disponibilidade, tabela com MTTR/MTBF e dicas, incidentes por severidade, exportar CSV/XLSX, histórico/download), aba **Relatório** no recurso (latência e CPU/mem/disco), Configurações com **Membros** (perfil, remover, convites com link exibido uma vez), **Integrações** (canais, teste, outbox, aviso de envio desligado) e **Auditoria** com filtros; páginas `/recuperar-senha`, `/redefinir-senha/:token`, `/convite/:token`; cadastro por convite
+- [x] Docs: reports.md, integrations.md, observability, security, deploy, decisions 30–36, README; E2E `fase5.spec.ts`
+
 ## Testes
 
 | Suíte | Como rodar | Último resultado |
@@ -97,6 +113,9 @@ Próxima: **Fase 5 — Relatórios e administração**.
 | Frontend Fase 3: NotificationsBell (1) | idem | 23/23 no total |
 | Backend Fase 4: IncidentsIT 3 (ciclo automático com alerta vinculado e timeline, ciclo manual com atribuição/comentários/histórico/MTTR/auditoria, isolamento + RBAC + opt-out), MaintenanceIT 2 (supressão de alertas/incidentes, encerramento antecipado e recálculo, agendamento/cancelamento/agendador) | idem (total 87) | ver "Execução" |
 | Frontend Fase 4: IncidentsPage (1) | idem | 24/24 no total |
+| Backend Fase 5: ReportsIT 3 (relatórios + isolamento, exportações CSV/XLSX + histórico + download + auditoria, CSV injection), IntegrationsIT 4 (política anti-SSRF, webhook assinado + backoff + teste + outbox, e-mail simulado + filtro por tipo, backoff/expiração), MembersIT 1 (ciclo completo de convites, perfis, último admin, auditoria), PasswordResetIT 2 (fluxo + hash + uso único, sessões em `SPRING_SESSION`) | idem (total 97) | ver "Execução" |
+| Frontend Fase 5: ReportsPage (2), IntegrationsTab (2) | idem | 28/28 no total |
+| E2E Fase 5 (`fase5.spec.ts`, 3 cenários): relatório + exportação, convite ponta a ponta, canal webhook (recusa externo, aceita allowlist, teste) | idem | ver "Execução" |
 | E2E (Playwright, 3 cenários): cadastro → recurso → verificação real → falha controlada → Indisponível → recuperação → isolamento | `docker compose --profile full up -d && cd e2e && E2E_DEMO_TARGET_HOST=host.docker.internal npx playwright test` | 3/3 passando (dev local e Docker completo) |
 
 ### Execução manual validada em 2026-11-06 (Fase 2)
@@ -115,7 +134,6 @@ Próxima: **Fase 5 — Relatórios e administração**.
 
 - Ao alternar entre API local e API em Docker usando o **mesmo banco**, recursos cadastrados com `localhost:910x` deixam de ser alcançáveis de dentro do container (passam a `connection_refused` → Indisponível após 3 falhas, como esperado). Use `host.docker.internal:910x` (padrão da seed no perfil `full`) ou atualize a URL do recurso.
 
-- Sessões HTTP ficam em memória (Tomcat): reiniciar a API desloga todos. Spring Session JDBC/Redis previsto para a Fase 5.
 - Rate limit em memória por IP (uma instância). Redis quando houver múltiplas instâncias.
 - Disponibilidade da Fase 1 não considera manutenções (módulo da Fase 4); a nota é exibida na interface.
 - Retenção de `health_check_executions` ainda não é aplicada (política e agregação na Fase 2, junto com as amostras do agente).
@@ -123,12 +141,14 @@ Próxima: **Fase 5 — Relatórios e administração**.
 - O agente usa apenas APIs da JVM: em Windows não há carga média nem uptime do SO (exibidos como indisponíveis). Agente para macOS/Windows nativo não está no escopo.
 - Sequência de eventos WebSocket é por instância (memória); com múltiplas instâncias passa a vir de Redis/banco. O cliente ressincroniza via REST em qualquer salto.
 - Rollups são gerados a cada 5 min; nos primeiros minutos após instalar um agente a consulta de 7 d usa as amostras brutas (`granularity: raw_fallback`).
+- Envio externo desligado por padrão (`INFRAWATCH_INTEGRATIONS_ENABLED=false`): entregas ficam `SKIPPED`. O `DeliveryDispatcher` roda a cada 10 s, então há até 10 s entre o evento e o envio.
+- Relatórios são calculados na leitura; com dezenas de milhares de transições por período pode valer materializar agregações (medir na Fase 6).
+- O Spring Session não aplica `server.servlet.session.cookie.*`; o cookie é configurado em `SessionConfig` (manter os dois em sincronia).
 
-## Próximas tarefas (Fase 5)
+## Próximas tarefas (Fase 6)
 
-1. Relatórios: disponibilidade por recurso e período (com/sem manutenção), tempo total indisponível, quantidade de incidentes, MTTR, MTBF (com limitação explícita quando < 2 incidentes), tempo médio e picos de latência, evolução de CPU/memória/disco; página Relatórios com filtros.
-2. Exportações CSV e XLSX com histórico de exportações e permissões consistentes.
-3. Canais externos consumindo `notifications`: e-mail via SMTP (desativado em dev) e webhooks de saída para destinos previamente cadastrados/autorizados, com fila/outbox e retentativas.
-4. Gerenciamento de membros (convite, alteração de perfil, remoção), página de auditoria completa com filtros.
-5. Observabilidade: Micrometer Prometheus registry, Prometheus/Grafana opcionais no Compose, OpenTelemetry tracing configurável.
-6. Spring Session JDBC (sessões persistentes) e rate limit distribuído se Redis for adicionado.
+1. Testes de concorrência (várias instâncias do despachante e do `DeliveryDispatcher` contra o mesmo banco; claims com `SKIP LOCKED`) e de isolamento entre organizações em todas as rotas (varredura automatizada).
+2. Benchmark do motor (centenas de recursos, intervalo mínimo) e dos relatórios (volume de transições/execuções); decidir sobre agregações materializadas e índices adicionais.
+3. Revisão de segurança: cabeçalhos (CSP), dependências (OWASP dependency-check / npm audit), revisão do modo `PUBLIC_AND_ALLOWLIST` com resolvedor fixado, rate limit distribuído (Redis) se necessário.
+4. Documentação final: capturas de tela em `docs/screenshots/`, diagramas revisados, guia de contribuição, changelog; README final.
+5. Entrega: `docker-compose.prod.yml` revisado, versão/tag, release notes, vídeo/roteiro de demonstração.

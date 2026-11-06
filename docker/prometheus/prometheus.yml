@@ -1,0 +1,13 @@
+# Prometheus de demonstração: coleta as métricas do Actuator (porta de gerenciamento 8081, só acessível na máquina/rede local).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: infrawatch-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # Com o perfil "full": o container da API. Sem ele (API rodando no host): host.docker.internal:8081.
+      - targets: ["api:8081", "host.docker.internal:8081"]
+        labels:
+          service: infrawatch-api

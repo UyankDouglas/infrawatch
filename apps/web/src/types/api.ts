@@ -251,6 +251,7 @@ export interface LatencyResponse {
 export interface AuditEntry {
   id: string;
   userId: string | null;
+  userName: string | null;
   action: string;
   entityType: string | null;
   entityId: string | null;

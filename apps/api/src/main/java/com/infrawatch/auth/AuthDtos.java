@@ -15,7 +15,14 @@ public final class AuthDtos {
             @NotBlank(message = "Informe o nome completo.") @Size(min = 2, max = 150) String fullName,
             @NotBlank(message = "Informe o e-mail.") @Email(message = "E-mail inválido.") @Size(max = 255) String email,
             @NotBlank(message = "Informe a senha.") @Size(min = 10, max = 128, message = "A senha deve ter entre 10 e 128 caracteres.") String password,
-            @NotBlank(message = "Informe o nome da organização.") @Size(min = 2, max = 150) String organizationName) {}
+            @Size(min = 2, max = 150) String organizationName,
+            @Size(max = 120) String inviteToken) {}
+
+    public record ForgotPasswordRequest(@NotBlank(message = "Informe o e-mail.") @Email(message = "E-mail inválido.") String email) {}
+
+    public record ResetPasswordRequest(
+            @NotBlank String token,
+            @NotBlank(message = "Informe a nova senha.") @Size(min = 10, max = 128, message = "A senha deve ter entre 10 e 128 caracteres.") String password) {}
 
     public record LoginRequest(
             @NotBlank(message = "Informe o e-mail.") @Email(message = "E-mail inválido.") String email,

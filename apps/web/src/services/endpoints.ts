@@ -39,19 +39,56 @@ import type {
   MaintenanceWindow,
   TimelineItem,
 } from "@/types/incidents";
+import type {
+  AvailabilityReport,
+  ChannelInput,
+  ChannelOptions,
+  Delivery,
+  ExportFormat,
+  ExportType,
+  IncidentsReport,
+  Invite,
+  InviteCreated,
+  InvitePublic,
+  MaintenanceMode,
+  NotificationChannel,
+  ReportExport,
+  ResourceReport,
+} from "@/types/reports";
+import type { MemberRole } from "@/types/api";
 
 export const authApi = {
   me: () => api.get<Me>("/auth/me"),
   login: (email: string, password: string) => api.post<Me>("/auth/login", { email, password }),
-  register: (data: { fullName: string; email: string; password: string; organizationName: string }) =>
-    api.post<Me>("/auth/register", data),
+  register: (data: {
+    fullName: string;
+    email: string;
+    password: string;
+    organizationName?: string;
+    inviteToken?: string;
+  }) => api.post<Me>("/auth/register", data),
   logout: () => api.post<void>("/auth/logout"),
+  forgotPassword: (email: string) => api.post<{ message: string }>("/auth/forgot-password", { email }),
+  resetPassword: (token: string, password: string) =>
+    api.post<{ message: string }>("/auth/reset-password", { token, password }),
 };
 
 export const organizationApi = {
   current: () => api.get<OrganizationSummary>("/organizations/current"),
   members: () => api.get<Member[]>("/organizations/current/members"),
   switch: (id: string) => api.post<OrganizationSummary>(`/organizations/${id}/switch`),
+  changeRole: (userId: string, role: MemberRole) =>
+    api.patch<{ userId: string; role: MemberRole; roleLabel: string }>(`/organizations/current/members/${userId}`, {
+      role,
+    }),
+  removeMember: (userId: string) => api.delete<void>(`/organizations/current/members/${userId}`),
+  invites: () => api.get<Invite[]>("/organizations/current/invites"),
+  invite: (email: string, role: MemberRole) =>
+    api.post<InviteCreated>("/organizations/current/invites", { email, role }),
+  revokeInvite: (id: string) => api.delete<void>(`/organizations/current/invites/${id}`),
+  describeInvite: (token: string) => api.get<InvitePublic>(`/invites/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string) =>
+    api.post<{ organizationId: string; organizationName: string }>(`/invites/${encodeURIComponent(token)}/accept`),
 };
 
 export interface ResourceListParams {
@@ -102,8 +139,47 @@ export const dashboardApi = {
   latency: (period: Period, limit = 5) => api.get<LatencyResponse>("/dashboard/latency", { period, limit }),
 };
 
+export interface AuditFilters {
+  action?: string;
+  userId?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+}
 export const auditApi = {
-  list: (page = 0, size = 25) => api.get<PageResponse<AuditEntry>>("/audit", { page, size }),
+  list: (page = 0, size = 25, filters: AuditFilters = {}) =>
+    api.get<PageResponse<AuditEntry>>("/audit", { page, size, ...filters }),
+  actions: () => api.get<string[]>("/audit/actions"),
+};
+
+export const reportsApi = {
+  availability: (period: Period, maintenance: MaintenanceMode, groupId?: string) =>
+    api.get<AvailabilityReport>("/reports/availability", { period, maintenance, groupId }),
+  incidents: (period: Period, resourceId?: string) =>
+    api.get<IncidentsReport>("/reports/incidents", { period, resourceId }),
+  resource: (id: string, period: Period, maintenance: MaintenanceMode) =>
+    api.get<ResourceReport>(`/reports/resources/${id}`, { period, maintenance }),
+  exports: () => api.get<ReportExport[]>("/reports/exports"),
+  createExport: (data: {
+    type: ExportType;
+    format: ExportFormat;
+    period: Period;
+    maintenance: MaintenanceMode;
+    groupId?: string;
+  }) => api.post<ReportExport>("/reports/exports", data),
+  downloadUrl: (id: string) => `${(import.meta.env.VITE_API_URL ?? "") + "/api/v1"}/reports/exports/${id}/download`,
+};
+
+export const integrationsApi = {
+  channels: () => api.get<NotificationChannel[]>("/integrations/channels"),
+  options: () => api.get<ChannelOptions>("/integrations/channels/options"),
+  create: (data: ChannelInput) => api.post<NotificationChannel>("/integrations/channels", data),
+  update: (id: string, data: Partial<ChannelInput>) =>
+    api.patch<NotificationChannel>(`/integrations/channels/${id}`, data),
+  remove: (id: string) => api.delete<void>(`/integrations/channels/${id}`),
+  test: (id: string) => api.post<Delivery>(`/integrations/channels/${id}/test`),
+  deliveries: (channelId?: string, page = 0, size = 25) =>
+    api.get<PageResponse<Delivery>>("/integrations/deliveries", { channelId, page, size }),
 };
 
 export const agentsApi = {

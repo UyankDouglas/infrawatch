@@ -1,31 +1,28 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderTree, Plus, ScrollText, Trash2, Users } from "lucide-react";
+import { FolderTree, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { MembersTab } from "@/features/settings/MembersTab";
+import { IntegrationsTab } from "@/features/settings/IntegrationsTab";
+import { AuditTab } from "@/features/settings/AuditTab";
 import { ApiError } from "@/services/api";
-import { auditApi, groupsApi, organizationApi } from "@/services/endpoints";
-import { formatDateTime } from "@/lib/format";
+import { groupsApi } from "@/services/endpoints";
 
 export function SettingsPage() {
   const { user, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = hasRole("ADMIN");
 
-  const members = useQuery({ queryKey: ["members"], queryFn: organizationApi.members });
   const groups = useQuery({ queryKey: ["groups"], queryFn: groupsApi.list });
-  const audit = useQuery({ queryKey: ["audit"], queryFn: () => auditApi.list(0, 50), enabled: isAdmin });
-
   const [groupName, setGroupName] = useState("");
   const [groupToDelete, setGroupToDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -56,52 +53,12 @@ export function SettingsPage() {
         <TabsList>
           <TabsTrigger value="members">Membros</TabsTrigger>
           <TabsTrigger value="groups">Grupos</TabsTrigger>
+          {isAdmin && <TabsTrigger value="integrations">Integrações</TabsTrigger>}
           {isAdmin && <TabsTrigger value="audit">Auditoria</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="members">
-          <Card>
-            <CardHeader>
-              <CardTitle>Membros da organização</CardTitle>
-              <CardDescription>
-                Perfis: Administrador (gerencia tudo), Operador (opera e reconhece), Visualizador (somente leitura).
-                Convites e alteração de perfil chegam na Fase 5.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {members.isLoading ? (
-                <Skeleton className="h-24 w-full" />
-              ) : (members.data?.length ?? 0) === 0 ? (
-                <EmptyState compact icon={Users} title="Nenhum membro" />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>E-mail</TableHead>
-                      <TableHead>Perfil</TableHead>
-                      <TableHead>Desde</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.data!.map((m) => (
-                      <TableRow key={m.userId}>
-                        <TableCell className="font-medium">
-                          {m.fullName}
-                          {m.userId === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{m.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={m.role === "ADMIN" ? "default" : "secondary"}>{m.roleLabel}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{formatDateTime(m.since, "dd/MM/yyyy")}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <MembersTab />
         </TabsContent>
 
         <TabsContent value="groups">
@@ -169,47 +126,13 @@ export function SettingsPage() {
         </TabsContent>
 
         {isAdmin && (
+          <TabsContent value="integrations">
+            <IntegrationsTab />
+          </TabsContent>
+        )}
+        {isAdmin && (
           <TabsContent value="audit">
-            <Card>
-              <CardHeader>
-                <CardTitle>Auditoria</CardTitle>
-                <CardDescription>Ações relevantes registradas nesta organização.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {audit.isLoading ? (
-                  <Skeleton className="h-24 w-full" />
-                ) : (audit.data?.items.length ?? 0) === 0 ? (
-                  <EmptyState compact icon={ScrollText} title="Nenhum registro de auditoria" />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Quando</TableHead>
-                        <TableHead>Ação</TableHead>
-                        <TableHead>Detalhes</TableHead>
-                        <TableHead>IP</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {audit.data!.items.map((a) => (
-                        <TableRow key={a.id}>
-                          <TableCell className="whitespace-nowrap text-muted-foreground">
-                            {formatDateTime(a.createdAt)}
-                          </TableCell>
-                          <TableCell>
-                            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{a.action}</code>
-                          </TableCell>
-                          <TableCell className="text-sm">{a.details ?? "—"}</TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground">
-                            {a.ipAddress ?? "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <AuditTab />
           </TabsContent>
         )}
       </Tabs>

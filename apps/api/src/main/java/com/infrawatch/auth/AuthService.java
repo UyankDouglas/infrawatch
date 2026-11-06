@@ -2,6 +2,7 @@ package com.infrawatch.auth;
 
 import com.infrawatch.audit.AuditService;
 import com.infrawatch.alerts.AlertService;
+import com.infrawatch.organization.MemberService;
 import com.infrawatch.auth.AuthDtos.MeResponse;
 import com.infrawatch.auth.AuthDtos.OrganizationSummary;
 import com.infrawatch.auth.AuthDtos.RegisterRequest;
@@ -33,11 +34,14 @@ public class AuthService {
     private final AuditService audit;
     private final CurrentContextService context;
     private final AlertService alerts;
+    private final MemberService memberService;
 
     public AuthService(UserRepository users, OrganizationRepository organizations,
                        OrganizationMemberRepository members, PasswordEncoder passwordEncoder,
-                       AuditService audit, CurrentContextService context, AlertService alerts) {
+                       AuditService audit, CurrentContextService context, AlertService alerts,
+                       MemberService memberService) {
         this.alerts = alerts;
+        this.memberService = memberService;
         this.users = users;
         this.organizations = organizations;
         this.members = members;
@@ -54,6 +58,15 @@ public class AuthService {
             throw ApiException.conflict("Já existe uma conta com este e-mail.");
         }
         User user = users.save(new User(email, passwordEncoder.encode(request.password()), request.fullName().trim()));
+        if (request.inviteToken() != null && !request.inviteToken().isBlank()) {
+            Organization joined = memberService.acceptOnRegister(user, request.inviteToken().trim());
+            audit.record(joined.getId(), user.getId(), "auth.register", "user", user.getId(),
+                    "Conta criada por convite para a organização \"" + joined.getName() + "\"");
+            return user;
+        }
+        if (request.organizationName() == null || request.organizationName().isBlank()) {
+            throw ApiException.badRequest("validation_error", "Informe o nome da organização.");
+        }
         Organization organization = organizations.save(
                 new Organization(request.organizationName().trim(), uniqueSlug(request.organizationName())));
         members.save(new OrganizationMember(organization, user, MemberRole.ADMIN));

@@ -77,7 +77,7 @@ class CheckEngineIT extends AbstractIntegrationTest {
     private String baseUrl() { return "http://127.0.0.1:" + server.getAddress().getPort(); }
 
     private String runNow(Session s, String id) throws Exception {
-        return mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).session(s.http()))
+        return mvc.perform(post("/api/v1/resources/" + id + "/checks/run").with(csrf()).cookie(s.cookie()))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     }
 
@@ -105,7 +105,7 @@ class CheckEngineIT extends AbstractIntegrationTest {
         assertThat((String) JsonPath.read(runNow(s, id), "$.currentStatus")).isEqualTo("DOWN");
         assertThat((String) JsonPath.read(runNow(s, id), "$.currentStatus")).isEqualTo("UP");
 
-        mvc.perform(get("/api/v1/resources/" + id + "/history").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + id + "/history").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalItems").value(3))
                 .andExpect(jsonPath("$.items[0].fromStatus").value("DOWN"))
@@ -114,17 +114,17 @@ class CheckEngineIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.items[1].toStatus").value("DOWN"))
                 .andExpect(jsonPath("$.items[2].fromStatus").value("PENDING"));
 
-        mvc.perform(get("/api/v1/resources/" + id + "/checks").session(s.http()))
+        mvc.perform(get("/api/v1/resources/" + id + "/checks").cookie(s.cookie()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalItems").value(6))
                 .andExpect(jsonPath("$.items[*].errorMessage").exists());
 
-        mvc.perform(get("/api/v1/resources/" + id + "/metrics").session(s.http()).param("period", "1h"))
+        mvc.perform(get("/api/v1/resources/" + id + "/metrics").cookie(s.cookie()).param("period", "1h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.latency[0].total").value(6))
                 .andExpect(jsonPath("$.observedSeconds").exists());
 
-        mvc.perform(get("/api/v1/dashboard/overview").session(s.http()).param("period", "1h"))
+        mvc.perform(get("/api/v1/dashboard/overview").cookie(s.cookie()).param("period", "1h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalResources").value(1))
                 .andExpect(jsonPath("$.available").value(1))
@@ -220,7 +220,7 @@ class CheckEngineIT extends AbstractIntegrationTest {
         Session s = register("Admin", "Org Paused");
         String id = createResource(s, "Pausado", baseUrl() + "/health", "{\"intervalSeconds\":60}");
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/resources/" + id)
-                        .with(csrf()).session(s.http())
+                        .with(csrf()).cookie(s.cookie())
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"enabled\":false}"))
                 .andExpect(status().isOk());
         assertThat(resources.claimDue(Instant.now(), 10)).doesNotContain(UUID.fromString(id));
