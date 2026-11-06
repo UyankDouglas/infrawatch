@@ -204,7 +204,19 @@ public class ResourceService {
                 .orElseThrow(() -> ApiException.notFound("Grupo não encontrado."));
     }
 
+    private static final java.util.regex.Pattern HOST_ID = java.util.regex.Pattern.compile(
+            "^[A-Za-z0-9]([A-Za-z0-9._-]{0,253})$");
+
     private String validateTarget(ResourceType type, String rawUrl) {
+        if (type == ResourceType.AGENT_SERVER) {
+            // Servidores com agente não são sondados pela rede: o campo identifica o host (nome/FQDN/IP).
+            String host = rawUrl == null ? "" : rawUrl.trim();
+            if (!HOST_ID.matcher(host).matches()) {
+                throw ApiException.badRequest("target_host",
+                        "Informe o identificador do servidor (nome, FQDN ou IP), sem esquema ou caminho.");
+            }
+            return host;
+        }
         try {
             var uri = targetValidator.validateSyntax(rawUrl);
             String scheme = uri.getScheme().toLowerCase(Locale.ROOT);

@@ -32,7 +32,8 @@ describe("LoginPage", () => {
   function setup() {
     fetchMock.mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.endsWith("/auth/me") && (!init?.method || init.method === "GET")) return jsonResponse(401, { code: "unauthorized" });
+      if (url.endsWith("/auth/me") && (!init?.method || init.method === "GET"))
+        return jsonResponse(401, { code: "unauthorized" });
       if (url.endsWith("/auth/login")) {
         const body = JSON.parse(String(init?.body));
         return body.password === "InfraWatch@2026"

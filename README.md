@@ -18,7 +18,7 @@ Equipes de TI, suporte e operações precisam saber **agora** se um serviço est
 
 O InfraWatch centraliza isso: você cadastra os recursos que administra, o backend verifica cada um periodicamente, confirma falhas com histerese (nada de alarme por uma oscilação), registra tudo no banco e mostra indicadores calculados a partir dos dados reais.
 
-## Funcionalidades (Fase 1 concluída)
+## Funcionalidades (Fases 1 e 2 concluídas)
 
 - **Contas e organizações** multi-tenant com perfis Administrador / Operador / Visualizador.
 - **Recursos monitorados**: serviços HTTP/HTTPS e aplicações com health check, com grupo, ambiente, responsável, tags e configuração de verificação (intervalo ≥ 30 s, timeout, códigos HTTP esperados, limite de degradação, limiares de falha e recuperação).
@@ -28,7 +28,8 @@ O InfraWatch centraliza isso: você cadastra os recursos que administra, o backe
 - **Visão Geral**: KPIs reais, disponibilidade por período, latência por serviço, distribuição de status, recursos com problemas, últimas transições.
 - **Página do recurso**: gráfico de latência, verificações, histórico, configuração, "Verificar agora", pausar, editar, remover.
 - **Interface** escura por padrão (modo claro disponível), sidebar recolhível, busca (Ctrl+K), skeletons, estados vazios, acessível por teclado.
-- **Ambiente de demonstração** em Docker com três serviços controláveis deterministicamente.
+- **Métricas de servidor por agente autorizado** (Fase 2): CPU, memória, disco, uptime e carga coletados por um agente leve em Java no próprio host, enviados por token com rotação/revogação; métricas não suportadas aparecem como *Indisponível*; séries brutas até 6 h e agregadas (5 min / 1 h) com retenção configurável; agente silencioso leva o recurso a *Sem dados*, nunca a *Indisponível*.
+- **Ambiente de demonstração** em Docker com três serviços HTTP controláveis deterministicamente e um container com o agente reportando métricas reais.
 - **Observabilidade própria**: Actuator, Micrometer, correlation id, logs estruturados.
 
 Roadmap: [Fases 2–6](#roadmap).
@@ -61,7 +62,8 @@ Detalhes em [docs/architecture.md](docs/architecture.md).
 ```
 infrawatch/
 ├── apps/
-│   ├── api/            Spring Boot (com/infrawatch/{auth,organization,resource,monitoring,dashboard,audit,security,common,seed})
+│   ├── api/            Spring Boot (com/infrawatch/{auth,organization,resource,monitoring,metrics,dashboard,audit,security,common,seed})
+│   ├── agent/          Agente Java 21 sem dependências (CPU, RAM, disco, uptime) + Dockerfile
 │   ├── web/            React + TypeScript (src/{app,components,features,hooks,layouts,pages,routes,services,types})
 │   └── demo-services/  Servidor Node de demonstração (healthy / degraded / flaky)
 ├── e2e/                Playwright
@@ -121,6 +123,7 @@ Portas: web 5174 · API 8080 · Actuator 8081 (localhost) · PostgreSQL 5433 · 
    ```
    Duas verificações depois o recurso volta a **Disponível** ("Recuperado após 2 sucesso(s)"), e a Visão Geral reflete a mudança.
 5. Outros cenários: `scripts/demo.sh slow 3000` (latência), `scripts/demo.sh pattern "ok,ok,fail"` (sequência determinística), `scripts/demo.sh reset`.
+6. Abra **Servidor de demonstração**: o container `infrawatch-agent-demo` reporta CPU, memória, disco e uptime a cada 15 s (etiqueta *Fonte: agente autorizado*). Pare o container (`docker stop infrawatch-agent-demo`) e, após ~45 s, o recurso passa a **Sem dados**; inicie de novo e ele volta a **Disponível**.
 
 ## Como cadastrar recursos
 
@@ -131,6 +134,10 @@ Portas: web 5174 · API 8080 · Actuator 8081 (localhost) · PostgreSQL 5433 · 
 Uma falha isolada **não** derruba o recurso: são necessárias `N` falhas consecutivas (padrão 3) para **Indisponível** e `M` sucessos consecutivos (padrão 2) para recuperar. Latência acima do limite por `N` coletas leva a **Degradado**. Se o InfraWatch deixar de coletar, o recurso vira **Sem dados**, não Indisponível. Resultados atrasados nunca sobrescrevem um estado mais novo. Detalhes e diagrama em [docs/monitoring-engine.md](docs/monitoring-engine.md). Alertas e incidentes seguem as definições em [docs/alerts-and-incidents.md](docs/alerts-and-incidents.md).
 
 **Disponibilidade** = tempo disponível ÷ tempo observado com estado conhecido × 100. Sem medições, o painel diz "Sem dados suficientes" em vez de 100%.
+
+## Métricas de CPU, memória e disco (agente)
+
+Verificações HTTP informam disponibilidade, código e latência. Métricas internas do servidor vêm **somente** de um agente opcional (`apps/agent`) instalado em máquinas que você administra: ele coleta via APIs padrão da JVM e `/proc/uptime`, envia para `POST /api/v1/agents/ingest` com um token exibido uma única vez (armazenado como hash, com rotação e revogação) e **não recebe comandos nem expõe acesso remoto**. O painel identifica a fonte de cada dado e mostra como *Indisponível* o que o agente não reporta. Guia em [apps/agent/README.md](apps/agent/README.md) e [docs/deploy.md](docs/deploy.md#instalar-o-agente-em-um-servidor-seu).
 
 ## Segurança
 
@@ -153,6 +160,8 @@ docker compose --profile full up -d --build && cd e2e && npm install && npx play
 ```
 Playwright: cadastro → recurso autorizado → verificação real → falha controlada → Indisponível → recuperação → histórico → isolamento entre organizações.
 
+Os testes de integração da Fase 2 (`AgentIngestIT`) cobrem registro, ingestão autenticada, métricas ausentes, tokens inválidos/revogados/rotacionados, limite de frequência, defasagem de relógio, isolamento, rollup, retenção e agente silencioso.
+
 CI em `.github/workflows/ci.yml`: build, typecheck, lint, testes, imagens Docker e E2E.
 
 ## Capturas de tela
@@ -163,17 +172,16 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 
 - Sessões e rate limit em memória (uma instância). Spring Session/Redis na Fase 5.
 - Sem WebSocket ainda: a interface faz polling de 10–15 s (Fase 3).
-- Métricas de CPU/RAM/disco dependem do agente autorizado (Fase 2); nada é inferido de respostas HTTP.
+- Métricas de CPU/RAM/disco dependem do agente autorizado; nada é inferido de respostas HTTP. O agente usa APIs da JVM: em Windows não há carga média nem uptime do SO.
 - Disponibilidade ainda não considera janelas de manutenção (Fase 4).
-- Retenção/agregação de histórico chega com as amostras do agente (Fase 2).
 
 ## Roadmap
 
 | Fase | Entrega | Status |
 |---|---|---|
 | 1 | Fundação e monitoramento HTTP funcional | ✅ concluída |
-| 2 | Agente autorizado: CPU, RAM, disco, uptime, retenção | próxima |
-| 3 | WebSocket, alertas, severidades, notificações internas | |
+| 2 | Agente autorizado: CPU, RAM, disco, uptime, retenção | ✅ concluída |
+| 3 | WebSocket, alertas, severidades, notificações internas | próxima |
 | 4 | Incidentes, timeline, comentários, manutenções programadas | |
 | 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | |
 | 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | |

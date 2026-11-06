@@ -12,12 +12,14 @@ flowchart LR
         AUTH[auth / organization<br/>sessões · RBAC · CSRF]
         RES[resource<br/>cadastro · política de alvos]
         MON[monitoring<br/>despachante · executor HTTP<br/>máquina de estados]
+        MET[metrics<br/>agentes · amostras · rollups]
         DASH[dashboard]
         AUD[audit]
         OBS[actuator · micrometer]
     end
 
     API --> PG[(PostgreSQL 17<br/>Flyway)]
+    AGT[infrawatch-agent<br/>(host do usuário)] -->|POST /agents/ingest · Bearer| API
     MON -->|verificações autorizadas| D1[demo-healthy]
     MON --> D2[demo-degraded]
     MON --> D3[demo-flaky]
@@ -34,6 +36,7 @@ flowchart LR
 | `organization` | Organização, associação e perfis (`MemberRole`) |
 | `resource` | Recursos monitorados, grupos, configuração de verificação, validação de destino |
 | `monitoring` | Política de alvos (anti-SSRF), executor HTTP, despachante, avaliação de estado, histórico, métricas internas |
+| `metrics` | Agentes autorizados, credenciais (hash), ingestão de amostras, rollups, retenção, leitura de métricas de CPU/RAM/disco |
 | `dashboard` | Agregações para a Visão Geral |
 | `audit` | Trilha de auditoria |
 | `seed` | Dados de demonstração (opcional) |

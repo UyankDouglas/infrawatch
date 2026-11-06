@@ -18,6 +18,7 @@ import type {
   RunNowResponse,
   Transition,
 } from "@/types/api";
+import type { AgentInfo, AgentMetrics, AgentTokenResponse } from "@/types/metrics";
 
 export const authApi = {
   me: () => api.get<Me>("/auth/me"),
@@ -82,4 +83,17 @@ export const dashboardApi = {
 
 export const auditApi = {
   list: (page = 0, size = 25) => api.get<PageResponse<AuditEntry>>("/audit", { page, size }),
+};
+
+export const agentsApi = {
+  list: () => api.get<AgentInfo[]>("/agents"),
+  forResource: (resourceId: string) => api.get<AgentInfo | undefined>(`/resources/${resourceId}/agent`),
+  metrics: (resourceId: string, period: Period) =>
+    api.get<AgentMetrics>(`/resources/${resourceId}/agent-metrics`, { period }),
+  register: (data: { resourceId: string; name: string; intervalSeconds?: number }) =>
+    api.post<AgentTokenResponse>("/agents/register", data),
+  rotate: (agentId: string) => api.post<AgentTokenResponse>(`/agents/${agentId}/rotate`),
+  updateInterval: (agentId: string, intervalSeconds: number) =>
+    api.patch<AgentInfo>(`/agents/${agentId}`, { intervalSeconds }),
+  revoke: (agentId: string) => api.delete<AgentInfo>(`/agents/${agentId}`),
 };

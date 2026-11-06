@@ -79,9 +79,17 @@ infrawatch:
       mode: ALLOWLIST_ONLY
       allowed-hosts: ${INFRAWATCH_ALLOWED_HOSTS:localhost,127.0.0.1,host.docker.internal,demo-healthy,demo-degraded,demo-flaky}
       allowed-ports: ${INFRAWATCH_ALLOWED_PORTS:80,443,8080,8081,9101,9102,9103}
+  metrics:
+    raw-retention: ${INFRAWATCH_METRICS_RAW_RETENTION:7d}
+    rollup-retention: ${INFRAWATCH_METRICS_ROLLUP_RETENTION:90d}
+    check-retention: ${INFRAWATCH_CHECK_RETENTION:30d}
+    min-ingest-spacing: 5s
+    max-clock-skew: 5m
+    stale-after-multiplier: 3
   seed:
     enabled: ${INFRAWATCH_SEED_ENABLED:false}
     demo-base-url: ${INFRAWATCH_DEMO_BASE_URL:http://localhost}
+    demo-agent-token: ${INFRAWATCH_DEMO_AGENT_TOKEN:}
 
 logging:
   level:

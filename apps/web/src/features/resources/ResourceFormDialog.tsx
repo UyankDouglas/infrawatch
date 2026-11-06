@@ -31,7 +31,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "Informe o nome.").max(120),
   description: z.string().max(1000).optional(),
   type: z.enum(["HTTP", "HTTPS", "HEALTH_ENDPOINT", "AGENT_SERVER"]),
-  targetUrl: z.string().trim().min(1, "Informe a URL autorizada.").max(2048),
+  targetUrl: z.string().trim().min(1, "Informe a URL ou o identificador do servidor.").max(2048),
   environment: z.enum(["DEVELOPMENT", "STAGING", "PRODUCTION"]),
   groupId: z.string().optional(),
   owner: z.string().max(120).optional(),
@@ -229,9 +229,8 @@ export function ResourceFormDialog({ open, onOpenChange, resource, onSaved }: Pr
                         ? typeOptions
                         : [{ value: "HEALTH_ENDPOINT", label: "Aplicação com health check", httpCheck: true }]
                       ).map((t) => (
-                        <SelectItem key={t.value} value={t.value} disabled={!t.httpCheck}>
+                        <SelectItem key={t.value} value={t.value}>
                           {t.label}
-                          {!t.httpCheck ? " (Fase 2)" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -267,17 +266,19 @@ export function ResourceFormDialog({ open, onOpenChange, resource, onSaved }: Pr
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="targetUrl">URL autorizada</Label>
+              <Label htmlFor="targetUrl">{httpCheck ? "URL autorizada" : "Identificação do servidor"}</Label>
               <Input
                 id="targetUrl"
                 {...form.register("targetUrl")}
                 aria-invalid={!!err("targetUrl")}
-                placeholder="http://demo-healthy:9101/health"
-                inputMode="url"
+                placeholder={httpCheck ? "http://demo-healthy:9101/health" : "srv-app-01.interno"}
+                inputMode={httpCheck ? "url" : "text"}
               />
               {err("targetUrl") && <p className="text-xs text-destructive">{err("targetUrl")}</p>}
               <p className="text-xs text-muted-foreground">
-                Na demonstração local: localhost:9101 (saudável), 9102 (degradada), 9103 (instável).
+                {httpCheck
+                  ? "Na demonstração local: localhost:9101 (saudável), 9102 (degradada), 9103 (instável)."
+                  : "Servidores com agente não são sondados pela rede: informe apenas o nome/FQDN/IP do host. As métricas chegam pelo agente autorizado, registrado após o cadastro."}
               </p>
             </div>
             <div className="space-y-2">
@@ -320,7 +321,9 @@ export function ResourceFormDialog({ open, onOpenChange, resource, onSaved }: Pr
           <div>
             <h3 className="text-sm font-semibold">Verificação HTTP</h3>
             <p className="text-xs text-muted-foreground">
-              Intervalo mínimo de 30 s. O timeout precisa ser menor que o intervalo.
+              {httpCheck
+                ? "Intervalo mínimo de 30 s. O timeout precisa ser menor que o intervalo."
+                : "Não se aplica a servidores com agente: a disponibilidade é derivada das amostras recebidas."}
             </p>
           </div>
           <fieldset disabled={!httpCheck} className="grid gap-4 sm:grid-cols-3">

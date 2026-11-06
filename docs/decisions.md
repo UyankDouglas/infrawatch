@@ -18,3 +18,7 @@
 | 14 | Serviços de demonstração em Node sem dependências, controlados por `/__control` | Cenários determinísticos e reproduzíveis; nenhum destino externo | Scripts `scripts/demo.sh` / `demo.ps1` |
 | 15 | Postgres na porta **5433** do host | Evitar conflito com instâncias locais na 5432 | `INFRAWATCH_DB_URL` padrão aponta para 5433 |
 | 16 | Actuator em porta separada (8081), publicada só em localhost | Não expor endpoints administrativos | Prometheus (Fase 5) coleta na rede interna do Compose |
+| 17 | Agente em **Java 21 puro** (sem Spring, sem OSHI) | Mesma linguagem do backend, JAR de ~10 KB, APIs padrão cientes de cgroups; nenhuma dependência para auditar | Métricas limitadas às APIs da JVM (`/proc/uptime` para uptime); Windows sem carga média |
+| 18 | Token de agente com prefixo público + hash SHA-256 do todo | Localização O(1) sem armazenar segredo; comparação em tempo constante | Rotação cria nova credencial; prefixo exibido no painel para identificação |
+| 19 | Amostras brutas + rollups 5 min/1 h em tabelas separadas | Retenção curta das brutas, histórico longo barato; consultas escolhem a granularidade pela janela | Job idempotente a cada 5 min; fallback para brutas quando rollup ainda não existe |
+| 20 | Agente silencioso ⇒ `UNKNOWN`, nunca `DOWN` | Ausência de coleta não é falha comprovada (princípio da Fase 1 mantido) | Alerta "falta de dados do agente" na Fase 3 parte desse estado |

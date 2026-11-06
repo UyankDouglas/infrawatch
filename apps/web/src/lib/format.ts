@@ -76,3 +76,25 @@ export function errorLabel(code: string | null | undefined): string {
   if (!code) return "—";
   return ERROR_LABELS[code] ?? code;
 }
+
+export function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = value;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1).replace(".", ",")} ${units[i]}`;
+}
+
+export function formatUptime(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "—";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d} d ${h} h`;
+  if (h > 0) return `${h} h ${m} min`;
+  return `${m} min`;
+}

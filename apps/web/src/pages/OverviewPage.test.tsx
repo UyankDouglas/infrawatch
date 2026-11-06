@@ -66,8 +66,10 @@ describe("OverviewPage", () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/dashboard/overview")) return jsonResponse(200, overview);
-      if (url.includes("/dashboard/availability")) return jsonResponse(200, { from: "", to: "", bucketSeconds: 900, points: [], note: "" });
-      if (url.includes("/dashboard/latency")) return jsonResponse(200, { from: "", to: "", bucketSeconds: 900, series: [] });
+      if (url.includes("/dashboard/availability"))
+        return jsonResponse(200, { from: "", to: "", bucketSeconds: 900, points: [], note: "" });
+      if (url.includes("/dashboard/latency"))
+        return jsonResponse(200, { from: "", to: "", bucketSeconds: 900, series: [] });
       return jsonResponse(404, {});
     });
     renderWithProviders(<OverviewPage />);
@@ -93,7 +95,12 @@ describe("OverviewPage", () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/dashboard/overview"))
-        return jsonResponse(200, { ...overview, availabilityPercent: null, averageResponseMs: null, observedSeconds: 0 });
+        return jsonResponse(200, {
+          ...overview,
+          availabilityPercent: null,
+          averageResponseMs: null,
+          observedSeconds: 0,
+        });
       return jsonResponse(200, { points: [], series: [], bucketSeconds: 900, from: "", to: "", note: "" });
     });
     renderWithProviders(<OverviewPage />);

@@ -46,6 +46,7 @@ public class StaleResourceDetector {
         List<MonitoredResource> candidates = resources.findStale(coarseThreshold);
         int marked = 0;
         for (MonitoredResource resource : candidates) {
+            if (!resource.getType().isHttpCheck()) continue; // recursos com agente: ver MetricMaintenanceJobs
             long staleAfter = (long) resource.getCheckConfig().getIntervalSeconds() * properties.staleAfterMultiplier();
             Instant threshold = now.minusSeconds(staleAfter);
             if (resource.getLastCheckAt() != null && resource.getLastCheckAt().isBefore(threshold)) {

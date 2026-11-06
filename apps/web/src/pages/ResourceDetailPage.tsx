@@ -32,6 +32,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { KpiCard } from "@/features/dashboard/KpiCard";
 import { ResourceLatencyChart } from "@/features/dashboard/charts";
 import { ResourceFormDialog } from "@/features/resources/ResourceFormDialog";
+import { AgentMetricsPanel } from "@/features/metrics/AgentMetricsPanel";
+import { AgentPanel } from "@/features/metrics/AgentPanel";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { usePeriod } from "@/hooks/usePeriod";
 import { ApiError } from "@/services/api";
@@ -177,7 +179,7 @@ export function ResourceDetailPage() {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {hasRole("OPERATOR") && (
+          {hasRole("OPERATOR") && r.type !== "AGENT_SERVER" && (
             <Button variant="outline" onClick={() => runNow.mutate()} disabled={runNow.isPending}>
               <RefreshCw className={runNow.isPending ? "size-4 animate-spin" : "size-4"} aria-hidden /> Verificar agora
             </Button>
@@ -204,13 +206,15 @@ export function ResourceDetailPage() {
       </div>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard
-          title="Última resposta"
-          value={r.lastResponseTimeMs == null ? null : formatMs(r.lastResponseTimeMs)}
-          icon={Timer}
-          hint={r.lastHttpStatus ? `HTTP ${r.lastHttpStatus}` : undefined}
-          emptyLabel="Sem verificação"
-        />
+        {r.type !== "AGENT_SERVER" && (
+          <KpiCard
+            title="Última resposta"
+            value={r.lastResponseTimeMs == null ? null : formatMs(r.lastResponseTimeMs)}
+            icon={Timer}
+            hint={r.lastHttpStatus ? `HTTP ${r.lastHttpStatus}` : undefined}
+            emptyLabel="Sem verificação"
+          />
+        )}
         <KpiCard
           title="Última verificação"
           value={r.lastCheckAt ? formatRelative(r.lastCheckAt) : null}
@@ -236,65 +240,85 @@ export function ResourceDetailPage() {
           loading={metrics.isLoading}
           hint={m && m.observedSeconds > 0 ? `${formatDuration(m.observedSeconds)} observados` : undefined}
         />
-        <KpiCard
-          title="Intervalo / timeout"
-          value={r.check ? `${formatInterval(r.check.intervalSeconds)} / ${formatMs(r.check.timeoutMs)}` : null}
-          icon={RefreshCw}
-          tone="info"
-          hint={
-            r.check
-              ? `Falhas p/ cair: ${r.check.failureThreshold} · p/ recuperar: ${r.check.recoveryThreshold}`
-              : undefined
-          }
-        />
-        <KpiCard
-          title="Últimas verificações"
-          value={lastChecks.length ? `${okCount}/${lastChecks.length} OK` : null}
-          icon={CircleCheck}
-          tone={okCount === lastChecks.length ? "up" : "degraded"}
-          loading={checks.isLoading}
-          hint={r.lastErrorCode ? `Último erro: ${errorLabel(r.lastErrorCode)}` : undefined}
-        />
+        {r.type !== "AGENT_SERVER" && (
+          <KpiCard
+            title="Intervalo / timeout"
+            value={r.check ? `${formatInterval(r.check.intervalSeconds)} / ${formatMs(r.check.timeoutMs)}` : null}
+            icon={RefreshCw}
+            tone="info"
+            hint={
+              r.check
+                ? `Falhas p/ cair: ${r.check.failureThreshold} · p/ recuperar: ${r.check.recoveryThreshold}`
+                : undefined
+            }
+          />
+        )}
+        {r.type !== "AGENT_SERVER" && (
+          <KpiCard
+            title="Últimas verificações"
+            value={lastChecks.length ? `${okCount}/${lastChecks.length} OK` : null}
+            icon={CircleCheck}
+            tone={okCount === lastChecks.length ? "up" : "degraded"}
+            loading={checks.isLoading}
+            hint={r.lastErrorCode ? `Último erro: ${errorLabel(r.lastErrorCode)}` : undefined}
+          />
+        )}
       </section>
 
-      <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle>Tempo de resposta</CardTitle>
-            <CardDescription>
-              Média e pico por intervalo, com base nas verificações bem-sucedidas.
-              {r.check?.degradedLatencyMs ? ` Limite de degradação: ${formatMs(r.check.degradedLatencyMs)}.` : ""}
-            </CardDescription>
-          </div>
-          <PeriodSelect value={period} onChange={setPeriod} />
-        </CardHeader>
-        <CardContent>
-          {metrics.isLoading ? (
-            <Skeleton className="h-[260px] w-full" />
-          ) : m && m.latency.length > 0 ? (
-            <ResourceLatencyChart
-              points={m.latency}
-              bucketSeconds={m.bucketSeconds}
-              degradedMs={r.check?.degradedLatencyMs}
-            />
-          ) : (
-            <EmptyState
-              compact
-              icon={Timer}
-              title="Sem medições no período"
-              description="O gráfico aparece após as primeiras verificações."
-            />
-          )}
-          {m && <p className="mt-3 text-xs text-muted-foreground">{m.availabilityNote}</p>}
-        </CardContent>
-      </Card>
+      {r.type === "AGENT_SERVER" && <AgentMetricsPanel resourceId={r.id} period={period} onPeriodChange={setPeriod} />}
 
-      <Tabs defaultValue="checks">
+      {r.type !== "AGENT_SERVER" && (
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Tempo de resposta
+                <Badge variant="secondary" className="font-normal">
+                  Fonte: verificação HTTP
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Média e pico por intervalo, com base nas verificações bem-sucedidas.
+                {r.check?.degradedLatencyMs ? ` Limite de degradação: ${formatMs(r.check.degradedLatencyMs)}.` : ""}
+              </CardDescription>
+            </div>
+            <PeriodSelect value={period} onChange={setPeriod} />
+          </CardHeader>
+          <CardContent>
+            {metrics.isLoading ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : m && m.latency.length > 0 ? (
+              <ResourceLatencyChart
+                points={m.latency}
+                bucketSeconds={m.bucketSeconds}
+                degradedMs={r.check?.degradedLatencyMs}
+              />
+            ) : (
+              <EmptyState
+                compact
+                icon={Timer}
+                title="Sem medições no período"
+                description="O gráfico aparece após as primeiras verificações."
+              />
+            )}
+            {m && <p className="mt-3 text-xs text-muted-foreground">{m.availabilityNote}</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs defaultValue={r.type === "AGENT_SERVER" ? "agent" : "checks"}>
         <TabsList>
+          {r.type === "AGENT_SERVER" && <TabsTrigger value="agent">Agente</TabsTrigger>}
           <TabsTrigger value="checks">Verificações</TabsTrigger>
           <TabsTrigger value="history">Histórico de estados</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
         </TabsList>
+
+        {r.type === "AGENT_SERVER" && (
+          <TabsContent value="agent">
+            <AgentPanel resourceId={r.id} resourceName={r.name} />
+          </TabsContent>
+        )}
 
         <TabsContent value="checks">
           <Card className="gap-0 py-0">

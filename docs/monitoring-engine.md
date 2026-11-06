@@ -104,6 +104,29 @@ stateDiagram-v2
 
 `infrawatch.engine.checks.dispatched`, `infrawatch.engine.checks.executed{result,error}`, `infrawatch.engine.checks.duration{result}`, `infrawatch.engine.checks.inflight`, `infrawatch.engine.status.transitions`, `infrawatch.engine.resources.stale`. São métricas **do InfraWatch**, não dos recursos monitorados (essas vivem nas tabelas de domínio).
 
+## Coleta por agente (Fase 2)
+
+Recursos do tipo **Servidor com agente autorizado** não são sondados pela rede. Um agente opcional (`apps/agent`, Java 21 sem dependências) roda no próprio host e **envia** amostras para `POST /api/v1/agents/ingest` com token Bearer:
+
+```mermaid
+sequenceDiagram
+    participant AG as infrawatch-agent (host)
+    participant API as IngestService
+    participant DB as PostgreSQL
+    AG->>API: POST /agents/ingest (Bearer iwa_prefixo.segredo, JSON)
+    API->>DB: credencial por prefixo → compara SHA-256 (tempo constante)
+    API->>API: limite de frequência por agente, janela de relógio, normaliza percentuais
+    API->>DB: INSERT metric_samples; UPDATE agents.last_seen_at
+    API->>DB: recurso PENDING/UNKNOWN/DOWN → UP (+ histórico)
+    API-->>AG: 202 { nextIntervalSeconds }
+```
+
+- **Métricas**: CPU %, carga 1 min, memória total/usada/%, disco total/usado/%, uptime. Campos ausentes são gravados como `NULL` e exibidos como **Indisponível** — nunca inventados, nunca derivados de verificações HTTP.
+- **Estado**: amostra recebida ⇒ `UP`. Agente silencioso por `intervalo × 3` ⇒ `UNKNOWN` (Sem dados), nunca `DOWN`.
+- **Segurança do agente**: só saída; não abre portas, não executa comandos, não há canal do painel para o host. Token exibido uma única vez, armazenado como hash, com rotação e revogação.
+- **Retenção** (`infrawatch.metrics.*`): amostras brutas 7 dias, rollups (5 min / 1 h) 90 dias, execuções de verificação HTTP 30 dias. `MetricMaintenanceJobs` agrega a cada 5 min (idempotente, `ON CONFLICT DO UPDATE`) e aplica a retenção a cada hora.
+- **Leitura** (`GET /resources/{id}/agent-metrics?period=`): até 6 h usa amostras brutas; até 7 d rollup de 5 min; acima, rollup de 1 h. A resposta informa `source: "agent"`, a granularidade e as métricas ausentes.
+
 ## Disponibilidade
 
 Ver fórmula e tratamento em [alerts-and-incidents.md](alerts-and-incidents.md#disponibilidade) e `AvailabilityCalculator`.

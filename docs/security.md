@@ -28,6 +28,14 @@ Detalhada em [monitoring-engine.md](monitoring-engine.md#execução-http-httpche
 
 Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a JDK `HttpClient` não permite fixar o endereço resolvido). Mitigação: política de allowlist (hosts controlados pelo operador) e revalidação por salto. Para o modo `PUBLIC_AND_ALLOWLIST`, um resolvedor fixado será adicionado antes de habilitá-lo por padrão.
 
+## Agentes (Fase 2)
+
+- Token `iwa_<prefixo>.<segredo>` (38 bytes aleatórios, `SecureRandom`), exibido **uma única vez**; o servidor guarda apenas o **SHA-256** e compara em tempo constante. Rotação revoga os anteriores; revogação bloqueia o agente.
+- O endpoint `POST /api/v1/agents/ingest` é o único sem sessão/CSRF (Bearer). É somente de entrada: nenhuma resposta carrega comandos, apenas o intervalo sugerido.
+- Limite de frequência por agente (mínimo 5 s entre amostras → `429`) e janela de relógio (±5 min à frente / 60 min atrás → `400 sample_clock_skew`).
+- O agente não abre portas, não executa comandos, não lê além de `/proc/uptime`, MXBeans e `FileStore`; alerta quando a URL da API não usa TLS fora de redes locais.
+- Amostras são validadas (0–100 %, bytes ≥ 0, `usado ≤ total`) e nunca contêm conteúdo arbitrário do host.
+
 ## Validação e erros
 
 - Bean Validation em todos os DTOs de entrada; limites de tamanho em todos os campos.

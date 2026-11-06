@@ -20,6 +20,7 @@ docker compose --profile full up -d --build
 | API | http://localhost:8080/api/v1 (OpenAPI: `/api/v1/docs`) |
 | Actuator | http://127.0.0.1:8081/actuator/health |
 | Demos | http://localhost:9101 · 9102 · 9103 (`/health`, `/__control`) |
+| Agente demo | container `infrawatch-agent-demo` (sem portas) reportando para a API a cada 15 s |
 | PostgreSQL | localhost:5433 (`infrawatch`/`infrawatch`) |
 
 A seed (`INFRAWATCH_SEED_ENABLED=true`, padrão no perfil `full`) cria:
@@ -63,6 +64,8 @@ O Vite (porta 5174) faz proxy de `/api` para `localhost:8080`, então cookies de
 | `INFRAWATCH_ALLOWED_PORTS` | `80,443,8080,8081,9101,9102,9103` | vazio = qualquer porta |
 | `INFRAWATCH_SEED_ENABLED` | `false` | seed de demonstração |
 | `INFRAWATCH_DEMO_BASE_URL` | `http://localhost` | base das URLs da seed |
+| `INFRAWATCH_DEMO_AGENT_TOKEN` | vazio | token do agente de demonstração criado pela seed (perfil `full` define um valor local) |
+| `INFRAWATCH_METRICS_RAW_RETENTION` / `INFRAWATCH_METRICS_ROLLUP_RETENTION` / `INFRAWATCH_CHECK_RETENTION` | `7d` / `90d` / `30d` | retenção de amostras, rollups e execuções HTTP |
 | `SPRING_PROFILES_ACTIVE` | — | `docker` ativa logs JSON (ECS) |
 
 Parâmetros do motor (`infrawatch.monitoring.*` em `application.yml`): `dispatcher-interval` (5 s), `max-concurrent-checks` (8), `batch-size` (50), `min-interval-seconds` (30), `max-timeout-ms` (30000), `max-response-bytes` (65536), `max-redirects` (3), `stale-after-multiplier` (3).
@@ -70,3 +73,10 @@ Parâmetros do motor (`infrawatch.monitoring.*` em `application.yml`): `dispatch
 ## Produção (opcional, Fase 6)
 
 `docker-compose.prod.yml` (a criar na Fase 6) adicionará: imagens versionadas, TLS via proxy reverso, `INFRAWATCH_COOKIE_SECURE=true`, volumes com backup, Prometheus + Grafana opcionais e limites de recursos.
+
+## Instalar o agente em um servidor seu
+
+1. Cadastre um recurso do tipo **Servidor com agente autorizado** (informe só o nome do host).
+2. Na aba **Agente**, clique **Registrar agente**: o token aparece uma única vez.
+3. No servidor: `docker run -d -e INFRAWATCH_API_URL=https://seu-infrawatch -e INFRAWATCH_AGENT_TOKEN=iwa_… infrawatch-agent` (imagem construída de `apps/agent`) ou `java -jar infrawatch-agent.jar`.
+4. Em até um intervalo o painel mostra CPU, memória, disco e uptime com a etiqueta **Fonte: agente autorizado**.

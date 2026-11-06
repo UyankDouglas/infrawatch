@@ -67,11 +67,26 @@ services:
       INFRAWATCH_SEED_ENABLED: ${INFRAWATCH_SEED_ENABLED:-true}
       INFRAWATCH_DEMO_BASE_URL: http://host.docker.internal
       INFRAWATCH_ALLOWED_HOSTS: localhost,127.0.0.1,host.docker.internal,demo-healthy,demo-degraded,demo-flaky
+      INFRAWATCH_DEMO_AGENT_TOKEN: ${INFRAWATCH_DEMO_AGENT_TOKEN:-iwa_demoagnt.local-demo-token-change-me-0001}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "${API_PORT:-8080}:8080"
       - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"
+
+  # Agente de demonstração: roda dentro do próprio container e reporta CPU/RAM/disco/uptime para a API.
+  agent-demo:
+    build: ./apps/agent
+    container_name: infrawatch-agent-demo
+    profiles: ["full"]
+    depends_on:
+      - api
+    environment:
+      INFRAWATCH_API_URL: http://api:8080
+      INFRAWATCH_AGENT_TOKEN: ${INFRAWATCH_DEMO_AGENT_TOKEN:-iwa_demoagnt.local-demo-token-change-me-0001}
+      INFRAWATCH_AGENT_INTERVAL: "15"
+      INFRAWATCH_AGENT_HOSTNAME: demo-agent
+    restart: unless-stopped
 
   web:
     build:

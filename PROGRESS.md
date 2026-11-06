@@ -5,7 +5,8 @@
 ## Fase atual
 
 **Fase 1 — Fundação e monitoramento funcional: CONCLUÍDA (2026-11-06).**
-Próxima: **Fase 2 — Métricas de infraestrutura (agente autorizado)**.
+**Fase 2 — Métricas de infraestrutura (agente autorizado): CONCLUÍDA (2026-11-06).**
+Próxima: **Fase 3 — Tempo real (WebSocket) e alertas**.
 
 ## Stack e versões escolhidas (verificadas no Maven Central / npm em 2026-11-06)
 
@@ -43,6 +44,20 @@ Próxima: **Fase 2 — Métricas de infraestrutura (agente autorizado)**.
 - [x] Scripts de demonstração (`scripts/demo.sh`, `scripts/demo.ps1`)
 - [x] CI (GitHub Actions): backend, frontend, docker, e2e
 
+## Funcionalidades concluídas (Fase 2)
+
+- [x] Migração `V2__metricas_agente.sql`: `agents`, `agent_credentials` (hash SHA-256 + prefixo), `metric_samples` (brutas), `metric_rollups` (5 min / 1 h)
+- [x] Registro de agente por recurso do tipo `AGENT_SERVER` (`POST /agents/register`, token exibido uma única vez), rotação (`POST /agents/{id}/rotate`), revogação (`DELETE /agents/{id}`), intervalo (`PATCH /agents/{id}`), listagem (`GET /agents`, `GET /resources/{id}/agent`)
+- [x] Ingestão `POST /agents/ingest` (Bearer, sem sessão/CSRF): validação, percentuais calculados no servidor, métricas ausentes gravadas como `NULL`, limite de frequência por agente (429), janela de relógio (400), atualização de `last_seen_at`
+- [x] Estado do recurso por agente: amostra ⇒ `UP`; silêncio por `intervalo × 3` ⇒ `UNKNOWN` (Sem dados), nunca `DOWN`
+- [x] Leitura `GET /resources/{id}/agent-metrics?period=`: último valor por métrica com flag `available`, lista `missingMetrics`, série com granularidade automática (brutas ≤ 6 h, rollup 5 min ≤ 7 d, rollup 1 h acima), `source: "agent"`
+- [x] `MetricMaintenanceJobs`: rollup idempotente a cada 5 min, retenção horária (brutas 7 d, rollups 90 d, execuções HTTP 30 d — configuráveis), detecção de agente silencioso a cada 30 s
+- [x] Agente `apps/agent` (Java 21 puro, ~10 KB): CPU, carga, memória, disco, uptime via MXBeans/`FileStore`/`/proc/uptime`; só saída; Dockerfile; README
+- [x] Compose: serviço `agent-demo` (perfil `full`) com token conhecido via `INFRAWATCH_DEMO_AGENT_TOKEN`; seed cria "Servidor de demonstração" + agente
+- [x] Frontend: `AgentMetricsPanel` (gauges CPU/memória/disco/uptime com "Indisponível", gráficos CPU/mem/disco, etiqueta "Fonte: agente autorizado", aviso de agente silencioso), `AgentPanel` (registrar, token exibido uma vez com comando docker, rotacionar, revogar), formulário aceita tipo servidor (campo vira "Identificação do servidor"), etiqueta "Fonte: verificação HTTP" no gráfico de latência
+- [x] Métricas internas: `infrawatch.engine.agent.samples.accepted|rejected`
+- [x] Docs atualizadas: monitoring-engine, architecture, security, decisions (17–20), deploy, README; CI constrói o agente
+
 ## Testes
 
 | Suíte | Como rodar | Último resultado |
@@ -50,9 +65,17 @@ Próxima: **Fase 2 — Métricas de infraestrutura (agente autorizado)**.
 | Backend unitários (StatusEvaluator 9, TargetValidator 23, StatusCodeMatcher 4, AvailabilityCalculator 4) | `cd apps/api && ./mvnw test` | 40/40 passando (2026-11-06) |
 | Backend integração (Testcontainers + PostgreSQL 17): AuthFlowIT 8, ResourceApiIT 6, CheckEngineIT 8 | idem (mesmo comando, total 62) | 22/22 passando (2026-11-06) |
 | Frontend (Vitest + RTL): api client, format, StatusBadge, LoginPage, OverviewPage | `cd apps/web && npm run test:run` | 18/18 passando |
+| Backend Fase 2: AgentTokensTest 3, AgentIngestIT 8 (registro, ingestão, métricas ausentes, tokens inválidos/revogados, rotação, 429/400, isolamento, rollup+retenção, agente silencioso) | idem (total 73) | 11/11 passando (2026-11-06) |
+| Frontend Fase 2: AgentMetricsPanel (4) | idem | 22/22 no total |
 | E2E (Playwright, 3 cenários): cadastro → recurso → verificação real → falha controlada → Indisponível → recuperação → isolamento | `docker compose --profile full up -d && cd e2e && E2E_DEMO_TARGET_HOST=host.docker.internal npx playwright test` | 3/3 passando (dev local e Docker completo) |
 
-### Execução manual validada em 2026-11-06
+### Execução manual validada em 2026-11-06 (Fase 2)
+
+- `docker compose --profile full up -d --build` com banco limpo: seed cria "Servidor de demonstração" + agente; `agent-demo` envia a primeira amostra em ~1 s e o recurso vai de Aguardando → Disponível ("agente passou a reportar").
+- `GET /resources/{id}/agent-metrics`: CPU 3,3 %, memória 92,6 % (5,3 GB de 5,7 GB do container), disco 6,7 %, uptime 26 h, carga 2,88, série bruta com 3 pontos após 45 s; painel mostra os gauges, gráficos e a aba Agente (nome, situação "Reportando", prefixo da credencial, rotação/revogação).
+- `docker stop infrawatch-agent-demo`: após 45 s o recurso vai para **Sem dados** (nunca Indisponível); `docker start` volta a **Disponível** na amostra seguinte.
+
+### Execução manual validada em 2026-11-06 (Fase 1)
 
 - API sobe, Flyway aplica V1, seed cria Demo Corp + 3 recursos; primeira verificação em ~3 s: saudável/instável → Disponível, degradada → Degradado.
 - `POST /__control/down` no serviço instável + 3 × "Verificar agora" → Indisponível (histórico: "3 falha(s) consecutiva(s)"); `up` + 2 × → Disponível ("Recuperado após 2 sucesso(s)").
@@ -67,13 +90,14 @@ Próxima: **Fase 2 — Métricas de infraestrutura (agente autorizado)**.
 - Disponibilidade da Fase 1 não considera manutenções (módulo da Fase 4); a nota é exibida na interface.
 - Retenção de `health_check_executions` ainda não é aplicada (política e agregação na Fase 2, junto com as amostras do agente).
 - E2E depende do ambiente completo (Docker ou dev local); quando a API roda em container, o recurso de teste aponta para `host.docker.internal:9103` (`E2E_DEMO_TARGET_HOST`).
-- Tipo `AGENT_SERVER` existe no modelo, mas só ganha coleta na Fase 2 (o formulário o desabilita).
+- O agente usa apenas APIs da JVM: em Windows não há carga média nem uptime do SO (exibidos como indisponíveis). Agente para macOS/Windows nativo não está no escopo.
+- Rollups são gerados a cada 5 min; nos primeiros minutos após instalar um agente a consulta de 7 d usa as amostras brutas (`granularity: raw_fallback`).
 
-## Próximas tarefas (Fase 2)
+## Próximas tarefas (Fase 3)
 
-1. Entidades `Agent`, `AgentCredential`, `MetricSample` + migração V2.
-2. Endpoint autenticado de ingestão (`POST /api/v1/agents/{id}/samples`) com token por agente (hash) e limite de taxa.
-3. Agente Java leve (JAR) usando OSHI ou `OperatingSystemMXBean` + imagem Docker de demonstração.
-4. Métricas CPU / RAM / disco / uptime na página do recurso, com "métrica indisponível" quando o agente não reporta.
-5. Retenção e agregação (5 min / 1 h) para amostras e execuções.
-6. Alerta de "falta de dados do agente" (base para a Fase 3).
+1. Spring WebSocket (STOMP sobre SockJS ou WebSocket puro) com autenticação pela sessão e tópico por organização; eventos `resource.status_changed`, `resource.check_completed`, `alert.triggered`, `alert.acknowledged`, com `version`/sequência.
+2. Cliente WebSocket no frontend com reconexão exponencial e ressincronização via REST ao reconectar.
+3. Entidades `AlertRule`, `AlertEvent`, `Notification` + migração V3; motor de alertas acionado por transições de estado e por amostras do agente (CPU/RAM/disco acima do limite, falta de dados).
+4. Severidades, duração mínima, supressão de duplicados, reconhecimento/resolução, histórico.
+5. Notificações internas (sino na topbar) com outbox.
+6. Páginas Alertas e regras; KPI "Alertas ativos" real no dashboard.

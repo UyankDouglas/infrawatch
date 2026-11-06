@@ -2,6 +2,7 @@ package com.infrawatch.seed;
 
 import com.infrawatch.auth.User;
 import com.infrawatch.auth.UserRepository;
+import com.infrawatch.metrics.AgentService;
 import com.infrawatch.organization.MemberRole;
 import com.infrawatch.organization.Organization;
 import com.infrawatch.organization.OrganizationMember;
@@ -42,10 +43,12 @@ public class DemoSeeder implements ApplicationRunner {
     private final ResourceGroupRepository groups;
     private final PasswordEncoder encoder;
     private final SeedProperties properties;
+    private final AgentService agentService;
 
     public DemoSeeder(UserRepository users, OrganizationRepository organizations, OrganizationMemberRepository members,
                       MonitoredResourceRepository resources, ResourceGroupRepository groups, PasswordEncoder encoder,
-                      SeedProperties properties) {
+                      SeedProperties properties, AgentService agentService) {
+        this.agentService = agentService;
         this.users = users;
         this.organizations = organizations;
         this.members = members;
@@ -87,6 +90,19 @@ public class DemoSeeder implements ApplicationRunner {
                 base + ":9102/health", Environment.STAGING, 60, 5000, 800, Set.of("demo", "lenta"));
         createResource(org, apis, admin, "API Instável", "Serviço de demonstração com falhas controladas via painel.",
                 base + ":9103/health", Environment.DEVELOPMENT, 60, 3000, 800, Set.of("demo", "instavel"));
+
+        if (properties.demoAgentToken() != null && !properties.demoAgentToken().isBlank()) {
+            MonitoredResource server = new MonitoredResource(org.getId(), "Servidor de demonstração",
+                    ResourceType.AGENT_SERVER, "demo-agent", Environment.PRODUCTION, admin.getId());
+            server.setDescription("Container Linux com o agente InfraWatch reportando CPU, memória, disco e uptime.");
+            server.setGroup(apis);
+            server.setOwner("Equipe de Infraestrutura");
+            server.setTags(Set.of("demo", "agente"));
+            resources.save(server);
+            agentService.registerWithKnownToken(org.getId(), server.getId(), "agente-demo", 15,
+                    properties.demoAgentToken(), admin.getId());
+            log.info("Agente de demonstração registrado para o recurso \"Servidor de demonstração\".");
+        }
 
         log.info("Seed de demonstração aplicada. Usuários: admin@demo.infrawatch.local / operador@... / visualizador@... (senha: {})",
                 DEMO_PASSWORD);

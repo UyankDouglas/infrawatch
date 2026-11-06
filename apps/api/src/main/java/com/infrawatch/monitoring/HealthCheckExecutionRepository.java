@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -93,4 +94,8 @@ public interface HealthCheckExecutionRepository extends JpaRepository<HealthChec
              WHERE organization_id = :orgId AND success AND started_at >= :from AND started_at < :to
             """, nativeQuery = true)
     Double averageResponseTime(@Param("orgId") UUID organizationId, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Modifying
+    @Query(value = "DELETE FROM health_check_executions WHERE started_at < :threshold", nativeQuery = true)
+    int deleteOlderThan(@Param("threshold") Instant threshold);
 }

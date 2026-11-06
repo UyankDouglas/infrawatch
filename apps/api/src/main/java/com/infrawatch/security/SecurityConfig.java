@@ -72,7 +72,9 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf
                 .csrfTokenRepository(csrfRepository)
-                .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
+                .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                // Ingestão de agentes: autenticação por token Bearer, sem sessão nem cookie.
+                .ignoringRequestMatchers("/api/v1/agents/ingest"))
             .securityContext(ctx -> ctx.securityContextRepository(contextRepository))
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -82,6 +84,7 @@ public class SecurityConfig {
             .logout(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/agents/ingest").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf", "/api/v1/auth/me").permitAll()
                 .requestMatchers("/api/v1/docs/**", "/api/v1/openapi/**", "/swagger-ui/**").permitAll()
                 // Actuator responde apenas na porta de gerenciamento (8081), que não é exposta publicamente.
