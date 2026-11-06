@@ -70,8 +70,10 @@ test.describe.serial("Fase 1 — cadastro, verificação real, falha controlada 
     await expect(page.getByText("Estado alterado para Disponível.")).toBeVisible();
 
     await page.getByRole("tab", { name: "Histórico de estados" }).click();
-    await expect(page.getByText("Recuperado após 2 sucesso(s) consecutivo(s)")).toBeVisible();
-    await expect(page.getByText("3 falha(s) consecutiva(s)", { exact: false })).toBeVisible();
+    // Escopo no painel da aba: o mesmo texto também aparece em toasts de tempo real.
+    const history = page.getByRole("tabpanel");
+    await expect(history.getByText("Recuperado após 2 sucesso(s) consecutivo(s)")).toBeVisible();
+    await expect(history.getByText("3 falha(s) consecutiva(s)", { exact: false })).toBeVisible();
 
     await page.goto("/");
     await expect(page.getByText(resourceName).first()).toBeVisible();
