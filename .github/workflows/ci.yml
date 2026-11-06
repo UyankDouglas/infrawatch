@@ -27,7 +27,7 @@ jobs:
         run: ./mvnw -B -q -DskipTests package
       - name: Testes unitários e de integração (Testcontainers)
         run: ./mvnw -B verify
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: surefire-reports
@@ -119,7 +119,7 @@ jobs:
           E2E_BASE_URL: http://localhost:5174
           # A API roda em container: os serviços de demonstração são alcançados via host.docker.internal
           E2E_DEMO_TARGET_HOST: host.docker.internal
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
