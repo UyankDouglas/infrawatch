@@ -188,8 +188,7 @@ public class DashboardService {
         Instant from = to.minus(window);
         int bucket = Periods.bucketSeconds(window);
 
-        Map<UUID, String> names = resources.findByOrganizationIdOrderByNameAsc(orgId).stream()
-                .collect(Collectors.toMap(MonitoredResource::getId, MonitoredResource::getName));
+        Map<UUID, String> names = executions.resourceNames(orgId);
         List<ResourceAverage> averages = executions.averagePerResource(orgId, from, to);
         List<UUID> selected = averages.stream()
                 .sorted(Comparator.comparing(ResourceAverage::getAvgResponseMs, Comparator.nullsLast(Comparator.reverseOrder())))

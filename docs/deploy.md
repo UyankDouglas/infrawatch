@@ -76,9 +76,21 @@ O Vite (porta 5174) faz proxy de `/api` para `localhost:8080`, então cookies de
 
 Parâmetros do motor (`infrawatch.monitoring.*` em `application.yml`): `dispatcher-interval` (5 s), `max-concurrent-checks` (8), `batch-size` (50), `min-interval-seconds` (30), `max-timeout-ms` (30000), `max-response-bytes` (65536), `max-redirects` (3), `stale-after-multiplier` (3).
 
-## Produção (opcional, Fase 6)
+## Produção (opcional)
 
-`docker-compose.prod.yml` adiciona imagens versionadas, TLS via proxy reverso, `INFRAWATCH_COOKIE_SECURE=true`, volumes com backup e limites de recursos. Prometheus + Grafana vêm do perfil `observability`. Para e-mails reais, aponte `INFRAWATCH_SMTP_*` para o seu servidor e ligue `INFRAWATCH_INTEGRATIONS_ENABLED=true`.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile full --profile tls up -d --build
+```
+
+A sobreposição `docker-compose.prod.yml`:
+
+- não publica banco nem serviços de demonstração no host; a API só é alcançável pelo `web` (nginx) — o Actuator continua em `127.0.0.1:8081`;
+- desliga a seed, aplica `INFRAWATCH_COOKIE_SECURE`, `INFRAWATCH_PUBLIC_URL` (CORS e links de e-mail/webhook/convite) e uma allowlist restrita (`INFRAWATCH_ALLOWED_HOSTS`/`PORTS`);
+- etiqueta as imagens com `INFRAWATCH_VERSION` (padrão `1.0.0`), `restart: unless-stopped`, limites de memória e rotação de logs;
+- perfil **`tls`**: Caddy na porta 80/443 com certificado automático — `INFRAWATCH_DOMAIN=localhost` gera um certificado interno; um domínio público usa Let's Encrypt. Defina então `INFRAWATCH_PUBLIC_URL=https://seu-dominio` e `INFRAWATCH_COOKIE_SECURE=true`;
+- perfil **`observability`** continua disponível (Prometheus, Grafana, Mailpit, OTel Collector).
+
+Checklist antes de expor: `INFRAWATCH_ALLOWED_HOSTS` só com os destinos reais; `INFRAWATCH_SMTP_*` apontando para o seu servidor se quiser e-mails (`INFRAWATCH_INTEGRATIONS_ENABLED=true`); senha do Grafana; backup do volume `infrawatch-pgdata` (`pg_dump` agendado). Deploy público não faz parte do escopo do projeto.
 
 ## Instalar o agente em um servidor seu
 

@@ -9,7 +9,9 @@
 **Fase 3 — Tempo real (WebSocket) e alertas: CONCLUÍDA (2026-11-06).**
 **Fase 4 — Incidentes e manutenções programadas: CONCLUÍDA (2026-11-06).**
 **Fase 5 — Relatórios, exportações, integrações externas e administração: CONCLUÍDA (2026-11-06).**
-Próxima: **Fase 6 — Qualidade, segurança e entrega final**.
+**Fase 6 — Qualidade, segurança e apresentação: CONCLUÍDA (2026-11-06). Versão 1.0.0.**
+
+Todas as seis fases do plano foram entregues. Trabalho futuro (opcional) está em "Próximas tarefas".
 
 ## Stack e versões escolhidas (verificadas no Maven Central / npm em 2026-11-06)
 
@@ -100,6 +102,16 @@ Próxima: **Fase 6 — Qualidade, segurança e entrega final**.
 - [x] Frontend: página **Relatórios** (filtros período/manutenção/grupo, KPIs, barras de disponibilidade, tabela com MTTR/MTBF e dicas, incidentes por severidade, exportar CSV/XLSX, histórico/download), aba **Relatório** no recurso (latência e CPU/mem/disco), Configurações com **Membros** (perfil, remover, convites com link exibido uma vez), **Integrações** (canais, teste, outbox, aviso de envio desligado) e **Auditoria** com filtros; páginas `/recuperar-senha`, `/redefinir-senha/:token`, `/convite/:token`; cadastro por convite
 - [x] Docs: reports.md, integrations.md, observability, security, deploy, decisions 30–36, README; E2E `fase5.spec.ts`
 
+## Funcionalidades concluídas (Fase 6)
+
+- [x] `ConcurrencyIT`: 8 despachantes simultâneos sem claim duplicado; **encontrou e levou à correção de uma janela de reenvio no outbox** (entre o claim e a gravação do resultado a linha continuava elegível → agora há lease de 60 s); 16 resultados simultâneos no mesmo recurso → 1 transição, 1 alerta, 1 incidente; 6 despachantes do outbox → cada webhook entregue exatamente uma vez; cadastro simultâneo do mesmo e-mail → 1×201 e 7×409
+- [x] `IsolationSweepIT`: 44 rotas por id (GET/PATCH/PUT/POST/DELETE) de uma organização testadas por outra → nenhuma resposta 2xx/5xx; todas as listagens vazias; regras padrão não vazam
+- [x] `SecurityHeadersIT`: cabeçalhos de segurança em toda resposta (inclusive 401), rotas desconhecidas negadas, erros sem stack trace, JSON malformado sem eco
+- [x] `BenchmarkIT` (opcional, `-Dinfrawatch.bench=true`): seed sintético (300 recursos, 200 k execuções, 20 k transições, 2 k incidentes) e medições p50/p95; revelou N+1 em tags/configuração ao carregar recursos → corrigido com `@BatchSize(100)` nas tags, `@EntityGraph` (grupo + configuração) na consulta em lote e projeção de nomes; dashboard −84 %, relatório de incidentes −80 %, disponibilidade 30 d −52 % (`docs/benchmark.md`)
+- [x] Segurança: CSP e cabeçalhos no nginx e na API, `server_tokens off`, `shadcn` (CLI) movido para devDependencies → `npm audit --omit=dev` = 0 vulnerabilidades; `npm audit` no CI; Dependabot (Maven, npm, Actions, Docker); CodeQL (Java e TypeScript)
+- [x] Produção opcional: `docker-compose.prod.yml` revisado (imagens versionadas, sem portas internas, limites, logs com rotação) + perfil `tls` com Caddy (certificado interno ou Let's Encrypt)
+- [x] Apresentação: capturas de tela reproduzíveis (`e2e/tests/screenshots.spec.ts` → `docs/screenshots/`), README final, CHANGELOG, CONTRIBUTING, `docs/testing.md`, `docs/security-review.md`, `docs/benchmark.md`, decisões 37–42; versão 1.0.0 (tag `v1.0.0`)
+
 ## Testes
 
 | Suíte | Como rodar | Último resultado |
@@ -116,6 +128,9 @@ Próxima: **Fase 6 — Qualidade, segurança e entrega final**.
 | Backend Fase 5: ReportsIT 3 (relatórios + isolamento, exportações CSV/XLSX + histórico + download + auditoria, CSV injection), IntegrationsIT 4 (política anti-SSRF, webhook assinado + backoff + teste + outbox, e-mail simulado + filtro por tipo, backoff/expiração), MembersIT 1 (ciclo completo de convites, perfis, último admin, auditoria), PasswordResetIT 2 (fluxo + hash + uso único, sessões em `SPRING_SESSION`) | idem (total 97) | ver "Execução" |
 | Frontend Fase 5: ReportsPage (2), IntegrationsTab (2) | idem | 28/28 no total |
 | E2E Fase 5 (`fase5.spec.ts`, 3 cenários): relatório + exportação, convite ponta a ponta, canal webhook (recusa externo, aceita allowlist, teste) | idem | ver "Execução" |
+| Backend Fase 6: ConcurrencyIT 4, IsolationSweepIT 1, SecurityHeadersIT 2 | idem (total 104) | ver "Execução" |
+| Benchmark (opcional) | `cd apps/api && ./mvnw test -Dtest=BenchmarkIT -Dinfrawatch.bench=true` | `docs/benchmark.md` |
+| Capturas de tela | `cd e2e && SCREENSHOTS=1 npx playwright test tests/screenshots.spec.ts` | `docs/screenshots/` |
 | E2E (Playwright, 3 cenários): cadastro → recurso → verificação real → falha controlada → Indisponível → recuperação → isolamento | `docker compose --profile full up -d && cd e2e && E2E_DEMO_TARGET_HOST=host.docker.internal npx playwright test` | 3/3 passando (dev local e Docker completo) |
 
 ### Execução manual validada em 2026-11-06 (Fase 2)
@@ -145,10 +160,10 @@ Próxima: **Fase 6 — Qualidade, segurança e entrega final**.
 - Relatórios são calculados na leitura; com dezenas de milhares de transições por período pode valer materializar agregações (medir na Fase 6).
 - O Spring Session não aplica `server.servlet.session.cookie.*`; o cookie é configurado em `SessionConfig` (manter os dois em sincronia).
 
-## Próximas tarefas (Fase 6)
+## Próximas tarefas (pós-1.0, opcionais)
 
-1. Testes de concorrência (várias instâncias do despachante e do `DeliveryDispatcher` contra o mesmo banco; claims com `SKIP LOCKED`) e de isolamento entre organizações em todas as rotas (varredura automatizada).
-2. Benchmark do motor (centenas de recursos, intervalo mínimo) e dos relatórios (volume de transições/execuções); decidir sobre agregações materializadas e índices adicionais.
-3. Revisão de segurança: cabeçalhos (CSP), dependências (OWASP dependency-check / npm audit), revisão do modo `PUBLIC_AND_ALLOWLIST` com resolvedor fixado, rate limit distribuído (Redis) se necessário.
-4. Documentação final: capturas de tela em `docs/screenshots/`, diagramas revisados, guia de contribuição, changelog; README final.
-5. Entrega: `docker-compose.prod.yml` revisado, versão/tag, release notes, vídeo/roteiro de demonstração.
+1. Rate limit distribuído e sequência de eventos em Redis quando houver mais de uma instância da API.
+2. CSP com nonces (remover `unsafe-inline` de `style-src`) quando Recharts/Radix permitirem.
+3. Modo `PUBLIC_AND_ALLOWLIST` com resolvedor DNS fixado (hoje não é o padrão e está documentado como risco residual).
+4. Agregações materializadas para relatórios se o volume ultrapassar o medido no benchmark (p95 < 1 s com 200 k execuções/30 d).
+5. Agente nativo para Windows/macOS (carga média e uptime do SO) e TanStack Table 9.

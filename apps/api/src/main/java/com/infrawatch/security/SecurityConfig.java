@@ -79,6 +79,15 @@ public class SecurityConfig {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 .sessionFixation(fixation -> fixation.changeSessionId()))
+            // Cabeçalhos de segurança da API (respostas JSON): sem frames, sem sniffing, sem referrer, CSP restritiva
+            // (a API nunca serve HTML; a CSP aqui só fecha a porta caso um corpo seja renderizado por engano).
+            .headers(headers -> headers
+                .frameOptions(frame -> frame.deny())
+                .contentTypeOptions(Customizer.withDefaults())
+                .referrerPolicy(ref -> ref.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"))
+                .permissionsPolicyHeader(pp -> pp.policy("camera=(), microphone=(), geolocation=()"))
+                .cacheControl(Customizer.withDefaults()))
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)

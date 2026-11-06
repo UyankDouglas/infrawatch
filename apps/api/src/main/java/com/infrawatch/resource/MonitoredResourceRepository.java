@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -23,6 +24,8 @@ public interface MonitoredResourceRepository extends JpaRepository<MonitoredReso
 
     Page<MonitoredResource> findByOrganizationId(UUID organizationId, Pageable pageable);
 
+    /** Carga em lote (dashboard/relatórios): traz grupo e configuração no mesmo SELECT; tags vêm por @BatchSize. */
+    @EntityGraph(attributePaths = {"group", "checkConfig"})
     List<MonitoredResource> findByOrganizationIdOrderByNameAsc(UUID organizationId);
 
     long countByOrganizationId(UUID organizationId);

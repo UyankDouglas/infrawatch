@@ -59,6 +59,20 @@ Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a 
 - Conteúdo das entregas: apenas título, mensagem, severidade, tipo, link e identificadores — nunca cookies, tokens ou corpos de respostas monitoradas.
 - **Exportações**: isoladas por organização (404 fora dela), auditadas (`report.exported`), CSV com proteção contra *CSV injection*.
 
+## Cabeçalhos HTTP (revisão da Fase 6)
+
+| Onde | Cabeçalhos |
+|---|---|
+| SPA (nginx) | `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'` (só nas respostas da SPA; `/api` e `/ws` mantêm os cabeçalhos da própria API), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`, `server_tokens off`, `index.html` sem cache e assets imutáveis |
+| API (Spring Security) | `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, `Cache-Control: no-store` |
+| Caddy (perfil `tls`) | `Strict-Transport-Security` (1 ano) e remoção do cabeçalho `Server` |
+
+`script-src` não usa `unsafe-inline` nem `unsafe-eval`; `unsafe-inline` existe apenas em `style-src` por causa dos estilos inline de Recharts/Radix (nonces ficam como melhoria futura). Verificado por `SecurityHeadersIT` (API) e pelo E2E no Docker (SPA).
+
+## Revisão de segurança (Fase 6)
+
+Resumo em [security-review.md](security-review.md): rotas públicas mínimas, varredura de isolamento automatizada (`IsolationSweepIT`), testes de concorrência (`ConcurrencyIT`), auditoria de dependências (`npm audit` em CI, Dependabot, CodeQL), erros sem vazamento, anti-SSRF nas verificações e nos webhooks, envio externo desligado por padrão.
+
 ## Observabilidade segura
 
 - Actuator responde **apenas na porta de gerenciamento 8081**, que no Compose é publicada só em `127.0.0.1`. Não há endpoints administrativos na porta pública.
@@ -68,7 +82,7 @@ Risco residual documentado: *DNS rebinding* entre a resolução e a conexão (a 
 
 `audit_logs` registra cadastro, login, recursos, grupos, alertas, incidentes, manutenções, membros/convites, canais externos, exportações e redefinições de senha, com usuário, organização, IP e detalhes. Consultável por administradores em `GET /api/v1/audit` com filtros (ação, usuário, intervalo, busca) e nome do usuário resolvido.
 
-## Checklist para produção (fora do escopo da Fase 1)
+## Checklist para produção
 
 - TLS na borda e `INFRAWATCH_COOKIE_SECURE=true`.
 - `INFRAWATCH_ALLOWED_HOSTS` restrito aos destinos reais.

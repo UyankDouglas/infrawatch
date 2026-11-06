@@ -1,31 +1,86 @@
-# Sobreposição para execução "tipo produção" local (ainda sem TLS; proxy reverso fica a cargo do ambiente).
+# Sobreposição "tipo produção" (Fase 6).
 # Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile full up -d --build
-# Ajustes completos (imagens versionadas, Prometheus/Grafana, limites) chegam na Fase 6.
+#      (+ --profile tls para publicar em HTTPS com Caddy; + --profile observability para Prometheus/Grafana)
+#
+# O que muda em relação ao docker-compose.yml:
+#  - banco e serviços de demonstração sem portas no host; API só atrás do web/nginx (ou do Caddy);
+#  - seed desligada, cookie Secure quando há TLS, allowlist restrita ao que você definir;
+#  - imagens etiquetadas com INFRAWATCH_VERSION, restart automático, limites de memória, logs com rotação;
+#  - healthchecks já vêm das imagens (API: readiness do Actuator; web: /healthz).
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
 services:
   postgres:
-    ports: []          # banco não exposto no host
+    ports: []
     restart: unless-stopped
+    <<: *logging
+    deploy:
+      resources:
+        limits: { memory: 512M }
 
   api:
+    image: infrawatch/api:${INFRAWATCH_VERSION:-1.0.0}
     restart: unless-stopped
+    <<: *logging
     environment:
       INFRAWATCH_SEED_ENABLED: "false"
       INFRAWATCH_COOKIE_SECURE: ${INFRAWATCH_COOKIE_SECURE:-false}
+      INFRAWATCH_CORS_ORIGINS: ${INFRAWATCH_PUBLIC_URL:-http://localhost:5174}
+      INFRAWATCH_BASE_URL: ${INFRAWATCH_PUBLIC_URL:-http://localhost:5174}
       INFRAWATCH_DEMO_BASE_URL: http://demo-healthy
       INFRAWATCH_ALLOWED_HOSTS: ${INFRAWATCH_ALLOWED_HOSTS:-demo-healthy,demo-degraded,demo-flaky}
+      INFRAWATCH_ALLOWED_PORTS: ${INFRAWATCH_ALLOWED_PORTS:-80,443,9101,9102,9103}
+      INFRAWATCH_INTEGRATIONS_ENABLED: ${INFRAWATCH_INTEGRATIONS_ENABLED:-false}
+      INFRAWATCH_TRACING_SAMPLING: ${INFRAWATCH_TRACING_SAMPLING:-0.0}
     ports:
-      - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"   # API pública só via web/nginx
+      - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"   # só Actuator, só localhost; a API pública passa pelo web
     deploy:
       resources:
-        limits:
-          memory: 768M
+        limits: { memory: 768M }
+
+  agent-demo:
+    restart: unless-stopped
+    <<: *logging
+    deploy:
+      resources:
+        limits: { memory: 128M }
 
   web:
+    image: infrawatch/web:${INFRAWATCH_VERSION:-1.0.0}
     restart: unless-stopped
+    <<: *logging
+    deploy:
+      resources:
+        limits: { memory: 64M }
 
-  demo-healthy:
-    ports: []
-  demo-degraded:
-    ports: []
-  demo-flaky:
-    ports: []
+  demo-healthy: { ports: [], restart: unless-stopped }
+  demo-degraded: { ports: [], restart: unless-stopped }
+  demo-flaky: { ports: [], restart: unless-stopped }
+
+  # --- Perfil "tls": Caddy na frente do web com certificado automático ---
+  # Para um domínio público, defina INFRAWATCH_DOMAIN=monitor.exemplo.com (Let's Encrypt automático, portas 80/443).
+  # Sem domínio (padrão "localhost"), o Caddy emite um certificado interno (confiável só nesta máquina).
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: infrawatch-caddy
+    profiles: ["tls"]
+    restart: unless-stopped
+    <<: *logging
+    depends_on:
+      - web
+    environment:
+      INFRAWATCH_DOMAIN: ${INFRAWATCH_DOMAIN:-localhost}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - infrawatch-caddy-data:/data
+      - infrawatch-caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  infrawatch-caddy-data:
+  infrawatch-caddy-config:

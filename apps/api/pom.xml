@@ -13,7 +13,7 @@
 
   <groupId>com.infrawatch</groupId>
   <artifactId>infrawatch-api</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <name>InfraWatch API</name>
   <description>Plataforma de monitoramento de infraestrutura de TI</description>
 

@@ -15,10 +15,12 @@ flowchart LR
         MET[metrics<br/>agentes · amostras · rollups]
         ALR[alerts · notifications<br/>motor por eventos]
         INC[incidents · maintenance]
+        REP[reports<br/>disponibilidade · MTTR/MTBF · exportações]
+        INT[integrations<br/>outbox · e-mail · webhooks]
         RT[realtime<br/>broadcaster pós-commit]
         DASH[dashboard]
         AUD[audit]
-        OBS[actuator · micrometer]
+        OBS[actuator · micrometer · otel]
     end
 
     API --> PG[(PostgreSQL 17<br/>Flyway)]
@@ -26,7 +28,10 @@ flowchart LR
     MON -->|verificações autorizadas| D1[demo-healthy]
     MON --> D2[demo-degraded]
     MON --> D3[demo-flaky]
-    OBS -->|porta 8081| PROM[Prometheus (Fase 5)]
+    INT -->|SMTP| MAIL[Servidor SMTP<br/>(Mailpit na demo)]
+    INT -->|POST JSON assinado| HOOK[Webhooks autorizados]
+    OBS -->|porta 8081| PROM[Prometheus] --> GRAF[Grafana]
+    OBS -.->|OTLP opcional| OTEL[OTel Collector]
 ```
 
 ## Módulos do backend (`apps/api/src/main/java/com/infrawatch`)

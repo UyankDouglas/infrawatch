@@ -31,6 +31,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class DeliveryDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(DeliveryDispatcher.class);
+    /** Prazo de reserva de uma entrega reivindicada (ver processDue). */
+    static final Duration LEASE = Duration.ofSeconds(60);
 
     private final NotificationDeliveryRepository deliveries;
     private final NotificationChannelRepository channels;
@@ -75,6 +77,10 @@ public class DeliveryDispatcher {
                 d.expired();
                 return d;
             }
+            // Lease: entre o commit do claim e a gravação do resultado a linha continuaria PENDING e vencida, e outro
+            // despachante (outra instância ou o agendador) poderia reivindicá-la de novo. Adiar next_attempt_at fecha
+            // essa janela; se o processo cair no meio do envio, a entrega volta a ser elegível após o prazo.
+            d.lease(now.plus(LEASE));
             return d;
         }).toList());
         if (batch == null || batch.isEmpty()) return 0;

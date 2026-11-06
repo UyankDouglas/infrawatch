@@ -4,6 +4,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -115,6 +116,8 @@ public class MonitoredResource {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // BatchSize evita N+1 ao carregar centenas de recursos (dashboard, relatórios): 1 consulta por lote de 100.
+    @BatchSize(size = 100)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "monitored_resource_tags", joinColumns = @JoinColumn(name = "resource_id"))
     @Column(name = "tag", nullable = false, length = 40)

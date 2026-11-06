@@ -1,0 +1,13 @@
+# Proxy TLS do InfraWatch (perfil "tls" do docker-compose.prod.yml).
+# INFRAWATCH_DOMAIN=localhost → certificado interno; domínio público → Let's Encrypt automático.
+{$INFRAWATCH_DOMAIN:localhost} {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+    # Tudo (SPA, /api e /ws) vai para o nginx do web, que já aplica CSP e proxy para a API.
+    reverse_proxy web:80 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

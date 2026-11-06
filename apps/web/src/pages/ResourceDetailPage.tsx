@@ -211,7 +211,7 @@ export function ResourceDetailPage() {
       <ResourceAlerts resourceId={r.id} />
       <ResourceIncidentsPanel resourceId={r.id} />
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
         {r.type !== "AGENT_SERVER" && (
           <KpiCard
             title="Última resposta"

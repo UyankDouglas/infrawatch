@@ -12,13 +12,15 @@ Java 21 · Spring Boot 4.1 · PostgreSQL 17 · React 19 · TypeScript · Tailwin
 
 ---
 
+[![CI](https://github.com/UyankDouglas/infrawatch/actions/workflows/ci.yml/badge.svg)](https://github.com/UyankDouglas/infrawatch/actions/workflows/ci.yml) [![CodeQL](https://github.com/UyankDouglas/infrawatch/actions/workflows/codeql.yml/badge.svg)](https://github.com/UyankDouglas/infrawatch/actions/workflows/codeql.yml) ![Versão](https://img.shields.io/badge/vers%C3%A3o-1.0.0-3b82f6) ![Java 21](https://img.shields.io/badge/Java-21-orange) ![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-6db33f) ![React 19](https://img.shields.io/badge/React-19-61dafb) ![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)
+
 ## O problema
 
 Equipes de TI, suporte e operações precisam saber **agora** se um serviço está no ar, quão rápido responde e **quando** passou a falhar — sem depender de ferramentas pagas, sem painéis com números inventados e sem transformar o monitor em um scanner de rede.
 
 O InfraWatch centraliza isso: você cadastra os recursos que administra, o backend verifica cada um periodicamente, confirma falhas com histerese (nada de alarme por uma oscilação), registra tudo no banco e mostra indicadores calculados a partir dos dados reais.
 
-## Funcionalidades (Fases 1 a 5 concluídas)
+## Funcionalidades
 
 - **Contas e organizações** multi-tenant com perfis Administrador / Operador / Visualizador.
 - **Recursos monitorados**: serviços HTTP/HTTPS e aplicações com health check, com grupo, ambiente, responsável, tags e configuração de verificação (intervalo ≥ 30 s, timeout, códigos HTTP esperados, limite de degradação, limiares de falha e recuperação).
@@ -40,7 +42,7 @@ O InfraWatch centraliza isso: você cadastra os recursos que administra, o backe
 - **Ambiente de demonstração** em Docker com três serviços HTTP controláveis deterministicamente, um container com o agente reportando métricas reais e, no perfil `observability`, Prometheus + Grafana (dashboard provisionado), Mailpit e OTel Collector.
 - **Observabilidade própria**: Actuator, Micrometer (`/actuator/prometheus`), correlation id, logs estruturados, traces OpenTelemetry opcionais.
 
-Roadmap: [Fase 6](#roadmap).
+Todas as seis fases do plano foram entregues — veja o [histórico de versões](CHANGELOG.md) e o [roadmap](#roadmap).
 
 ## Tecnologias
 
@@ -196,20 +198,42 @@ Playwright: cadastro → recurso autorizado → verificação real → falha con
 
 Os testes de integração da Fase 2 (`AgentIngestIT`) cobrem registro, ingestão autenticada, métricas ausentes, tokens inválidos/revogados/rotacionados, limite de frequência, defasagem de relógio, isolamento, rollup, retenção e agente silencioso. Os da Fase 3 (`AlertEngineIT`, `WebSocketIT`) cobrem regras padrão, alerta único por condição, notificações, recuperação, reconhecimento/resolução com auditoria, latência com ocorrências, regras de agente e falta de dados, validação de regras, e o canal WebSocket (eventos para a própria organização, recusa de assinatura de outra organização, handshake sem sessão).
 
-Os da Fase 5 (`ReportsIT`, `IntegrationsIT`, `MembersIT`, `PasswordResetIT`) cobrem relatórios e exportações CSV/XLSX (inclusive proteção contra CSV injection e isolamento), canais externos (destinos recusados pela política, webhook assinado contra um servidor HTTP interno, e-mail com `JavaMailSender` simulado, retentativas/backoff, outbox), convites e membros (uso único, e-mail coincidente, último administrador) e recuperação de senha (hash, uso único, sessões em `SPRING_SESSION`). Frontend: `ReportsPage` e `IntegrationsTab`. E2E `fase5.spec.ts`: relatório + exportação, convite ponta a ponta e canal webhook.
+Os da Fase 6 (`ConcurrencyIT`, `IsolationSweepIT`, `SecurityHeadersIT`, `BenchmarkIT` opcional) estão descritos em [Qualidade e segurança](#qualidade-e-segurança). Os da Fase 5 (`ReportsIT`, `IntegrationsIT`, `MembersIT`, `PasswordResetIT`) cobrem relatórios e exportações CSV/XLSX (inclusive proteção contra CSV injection e isolamento), canais externos (destinos recusados pela política, webhook assinado contra um servidor HTTP interno, e-mail com `JavaMailSender` simulado, retentativas/backoff, outbox), convites e membros (uso único, e-mail coincidente, último administrador) e recuperação de senha (hash, uso único, sessões em `SPRING_SESSION`). Frontend: `ReportsPage` e `IntegrationsTab`. E2E `fase5.spec.ts`: relatório + exportação, convite ponta a ponta e canal webhook.
 
 CI em `.github/workflows/ci.yml`: build, typecheck, lint, testes, imagens Docker e E2E.
 
 ## Capturas de tela
 
-As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revisão final da interface). Vídeo de demonstração: a definir.
+Geradas a partir do ambiente de demonstração real (`cd e2e && SCREENSHOTS=1 npx playwright test tests/screenshots.spec.ts`).
+
+| Visão Geral | Recurso |
+|---|---|
+| ![Visão Geral](docs/screenshots/02-visao-geral.png) | ![Detalhe do recurso](docs/screenshots/04-recurso-detalhe.png) |
+
+| Incidentes | Relatórios |
+|---|---|
+| ![Incidentes](docs/screenshots/06-incidentes.png) | ![Relatórios](docs/screenshots/08-relatorios.png) |
+
+| Integrações | Tema claro |
+|---|---|
+| ![Integrações](docs/screenshots/09-integracoes.png) | ![Visão Geral clara](docs/screenshots/11-visao-geral-claro.png) |
+
+Mais capturas em [docs/screenshots](docs/screenshots/).
+
+## Qualidade e segurança
+
+- **Concorrência** ([ConcurrencyIT](apps/api/src/test/java/com/infrawatch/quality/ConcurrencyIT.java)): despachantes simultâneos nunca reivindicam o mesmo recurso, resultados simultâneos geram uma única transição/alerta/incidente, o outbox entrega cada webhook exatamente uma vez, cadastros concorrentes do mesmo e-mail criam uma única conta.
+- **Isolamento** ([IsolationSweepIT](apps/api/src/test/java/com/infrawatch/quality/IsolationSweepIT.java)): 44 rotas por id de uma organização testadas por outra, nenhuma responde com sucesso; listagens vazias.
+- **Benchmark** ([docs/benchmark.md](docs/benchmark.md)): 300 recursos, 200 mil execuções e 20 mil transições; claim do despachante em ~16 ms, relatório de 30 dias abaixo de 1 s após a correção de um N+1 encontrada pelo próprio benchmark.
+- **Revisão de segurança** ([docs/security-review.md](docs/security-review.md)): CSP e cabeçalhos no nginx e na API, dependências auditadas (`npm audit` em CI, Dependabot, CodeQL), erros sem vazamento, anti-SSRF em verificações e webhooks.
+- **Estratégia de testes** em [docs/testing.md](docs/testing.md).
 
 ## Limitações atuais
 
 - Rate limit em memória (uma instância); Redis se houver escala horizontal. Sessões já são persistentes.
 - Sequência de eventos em tempo real é por instância; com várias instâncias será movida para Redis/banco.
 - Métricas de CPU/RAM/disco dependem do agente autorizado; nada é inferido de respostas HTTP. O agente usa APIs da JVM: em Windows não há carga média nem uptime do SO.
-- Relatórios são calculados na leitura (sem agregações materializadas); a exportação de verificações limita-se às 20 000 mais recentes do período.
+- Relatórios são calculados na leitura (sem agregações materializadas; p95 < 1 s com 200 mil execuções em 30 dias — ver benchmark); a exportação de verificações limita-se às 20 000 mais recentes do período.
 - Envio externo (e-mail/webhook) fica desligado por padrão; os destinos de webhook precisam estar na allowlist.
 
 ## Roadmap
@@ -221,7 +245,9 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 | 3 | WebSocket, alertas, severidades, notificações internas | ✅ concluída |
 | 4 | Incidentes, timeline, comentários, manutenções programadas | ✅ concluída |
 | 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | ✅ concluída |
-| 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | próxima |
+| 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | ✅ concluída (v1.0.0) |
+
+Ideias pós-1.0 (Redis para múltiplas instâncias, CSP com nonces, agente nativo) estão listadas em [PROGRESS.md](PROGRESS.md).
 
 ---
 

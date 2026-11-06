@@ -19,6 +19,7 @@ transação — o `DeliveryDispatcher` roda a cada 10 s, reivindica as entregas 
 
 - **Sem duplicidade**: índice único `(channel_id, dedupe_key)` — a mesma chave de deduplicação usada pelas notificações
   internas evita reenvios em reprocessamentos.
+- **Exatamente uma vez entre despachantes**: ao reivindicar, o despachante adianta `next_attempt_at` em 60 s (lease); assim outra instância não reenvia a mesma entrega enquanto o envio está em curso. Se o processo cair no meio, a entrega volta a ser elegível após o prazo (semântica *at-least-once* só em caso de falha do processo). Garantia coberta por `ConcurrencyIT.outboxDeliversExactlyOnce`, que encontrou essa janela na Fase 6.
 - **Retentativas com espera progressiva**: 30 s, 60 s, 2 min, 4 min… (máx. 1 h) até `max-attempts` (5) → `FAILED`.
   Entregas com mais de `expire-after` (6 h) na fila viram `EXPIRED` (não se envia alerta velho).
 - **Desativado por padrão em desenvolvimento**: `infrawatch.integrations.dispatch-enabled=false`

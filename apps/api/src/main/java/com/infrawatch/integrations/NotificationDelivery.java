@@ -69,6 +69,9 @@ public class NotificationDelivery {
         }
     }
 
+    /** Reserva a entrega para o despachante atual: outros despachantes só a verão de novo após o prazo (lease). */
+    public void lease(Instant until) { this.nextAttemptAt = until; }
+
     public void skipped(String why) { status = Status.SKIPPED; lastError = why; }
     public void expired() { status = Status.EXPIRED; }
 

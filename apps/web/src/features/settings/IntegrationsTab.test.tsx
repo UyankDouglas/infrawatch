@@ -85,7 +85,9 @@ describe("IntegrationsTab", () => {
     await userEvent.click(screen.getByRole("button", { name: /Testar/ }));
     await waitFor(() =>
       expect(
-        fetchMock.mock.calls.some(([input, init]) => String(input).includes("/channels/c1/test") && init?.method === "POST"),
+        fetchMock.mock.calls.some(
+          ([input, init]) => String(input).includes("/channels/c1/test") && init?.method === "POST",
+        ),
       ).toBe(true),
     );
   });

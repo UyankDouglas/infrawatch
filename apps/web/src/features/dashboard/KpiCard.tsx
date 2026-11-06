@@ -45,7 +45,9 @@ export function KpiCard({
           ) : isEmpty ? (
             <p className="mt-1 text-sm font-medium text-muted-foreground">{emptyLabel}</p>
           ) : (
-            <p className="mt-0.5 text-xl font-semibold tabular-nums tracking-tight break-words sm:text-2xl">{value}</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight [overflow-wrap:anywhere] sm:text-xl xl:text-2xl">
+              {value}
+            </p>
           )}
           {hint && !loading && <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p>}
         </div>

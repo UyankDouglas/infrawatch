@@ -23,7 +23,7 @@ test.describe.serial("Fase 5 — relatórios, exportações, convites e integra�
     await page.getByRole("button", { name: "Exportar disponibilidade" }).click();
     await page.getByRole("tab", { name: "Exportações" }).click();
     const history = page.getByRole("tabpanel");
-    await expect(history.getByText(/infrawatch-availability-7d-.*\.csv/)).toBeVisible();
+    await expect(history.getByText(/infrawatch-availability-7d-.*\.csv/).first()).toBeVisible();
     await expect(history.getByRole("link", { name: /Baixar/ }).first()).toHaveAttribute("href", /\/reports\/exports\/.*\/download/);
   });
 

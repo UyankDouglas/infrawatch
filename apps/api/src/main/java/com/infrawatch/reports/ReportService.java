@@ -144,8 +144,7 @@ public class ReportService {
             var p = cb.and(cb.equal(root.get("organizationId"), ctx.organizationId()), cb.greaterThanOrEqualTo(root.get("openedAt"), from));
             return resourceId == null ? p : cb.and(p, cb.equal(root.get("resourceId"), resourceId));
         }).stream().sorted(Comparator.comparing(Incident::getOpenedAt).reversed()).toList();
-        Map<UUID, String> names = resources.findByOrganizationIdOrderByNameAsc(ctx.organizationId()).stream()
-                .collect(Collectors.toMap(MonitoredResource::getId, MonitoredResource::getName));
+        Map<UUID, String> names = executions.resourceNames(ctx.organizationId());
         List<IncidentRow> rows = list.stream().map(i -> toRow(i, names)).toList();
         Mt mt = meanTimes(list);
         Double mtta = average(list.stream().filter(i -> i.getAcknowledgedAt() != null)
