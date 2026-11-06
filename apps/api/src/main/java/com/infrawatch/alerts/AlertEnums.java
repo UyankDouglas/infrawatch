@@ -64,5 +64,5 @@ public final class AlertEnums {
         public String getLabel() { return label; }
     }
 
-    public enum Resolution { CONDITION_CLEARED, MANUAL, RULE_DISABLED, RESOURCE_REMOVED }
+    public enum Resolution { CONDITION_CLEARED, MANUAL, RULE_DISABLED, RESOURCE_REMOVED, MAINTENANCE }
 }

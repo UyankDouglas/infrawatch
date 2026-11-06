@@ -1,6 +1,8 @@
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Legend,
@@ -16,6 +18,7 @@ import {
 import { STATUS_HEX } from "@/components/StatusBadge";
 import { bucketLabel, formatDateTime, formatMs, formatPercent } from "@/lib/format";
 import type { AvailabilitySeries, LatencyResponse, Overview, ResourceStatus } from "@/types/api";
+import type { IncidentSeries } from "@/types/incidents";
 
 const GRID = "color-mix(in oklab, var(--border) 80%, transparent)";
 const AXIS = "var(--muted-foreground)";
@@ -289,6 +292,40 @@ export function ResourceLatencyChart({
           />
         ) : null}
       </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function IncidentsChart({ data }: { data: IncidentSeries }) {
+  const rows = data.points.map((p) => ({
+    ...p,
+    label: bucketLabel(p.bucket, data.bucketSeconds),
+    manual: p.total - p.automatic,
+  }));
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={rows} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis
+          dataKey="label"
+          stroke={AXIS}
+          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          minTickGap={24}
+        />
+        <YAxis allowDecimals={false} stroke={AXIS} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+        <Tooltip
+          {...tooltipStyle}
+          formatter={(value, name) => [num(value) ?? 0, name === "automatic" ? "Automáticos" : "Manuais"]}
+          labelFormatter={(_, payload) =>
+            formatDateTime(payload?.[0]?.payload?.bucket as string | undefined, "dd/MM HH:mm")
+          }
+        />
+        <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "automatic" ? "Automáticos" : "Manuais")} />
+        <Bar dataKey="automatic" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+        <Bar dataKey="manual" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+      </BarChart>
     </ResponsiveContainer>
   );
 }

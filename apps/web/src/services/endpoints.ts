@@ -27,6 +27,18 @@ import type {
   AlertSummary,
   AppNotification,
 } from "@/types/alerts";
+import type {
+  Incident,
+  IncidentDetail,
+  IncidentInput,
+  IncidentPatch,
+  IncidentSeries,
+  IncidentStatus,
+  IncidentSummary,
+  MaintenanceInput,
+  MaintenanceWindow,
+  TimelineItem,
+} from "@/types/incidents";
 
 export const authApi = {
   me: () => api.get<Me>("/auth/me"),
@@ -84,7 +96,8 @@ export const groupsApi = {
 };
 
 export const dashboardApi = {
-  overview: (period: Period) => api.get<Overview>("/dashboard/overview", { period }),
+  overview: (period: Period, maintenance: "excluded" | "counted" = "excluded") =>
+    api.get<Overview>("/dashboard/overview", { period, maintenance }),
   availability: (period: Period) => api.get<AvailabilitySeries>("/dashboard/availability", { period }),
   latency: (period: Period, limit = 5) => api.get<LatencyResponse>("/dashboard/latency", { period, limit }),
 };
@@ -137,4 +150,38 @@ export const notificationsApi = {
   unreadCount: () => api.get<{ unread: number }>("/notifications/unread-count"),
   markRead: (id: string) => api.post<AppNotification>(`/notifications/${id}/read`),
   markAllRead: () => api.post<{ updated: number }>("/notifications/read-all"),
+};
+
+export interface IncidentListParams {
+  status?: string;
+  active?: boolean;
+  severity?: string;
+  origin?: string;
+  resourceId?: string;
+  assigneeId?: string;
+  page?: number;
+  size?: number;
+}
+
+export const incidentsApi = {
+  list: (params: IncidentListParams) =>
+    api.get<PageResponse<Incident>>("/incidents", params as Record<string, string | number | boolean | undefined>),
+  get: (id: string) => api.get<IncidentDetail>(`/incidents/${id}`),
+  summary: () => api.get<IncidentSummary>("/incidents/summary"),
+  create: (data: IncidentInput) => api.post<Incident>("/incidents", data),
+  patch: (id: string, data: IncidentPatch) => api.patch<Incident>(`/incidents/${id}`, data),
+  changeStatus: (id: string, status: IncidentStatus, note?: string) =>
+    api.post<Incident>(`/incidents/${id}/status`, { status, note: note || null }),
+  comment: (id: string, body: string) => api.post<TimelineItem>(`/incidents/${id}/comments`, { body }),
+  forResource: (resourceId: string) => api.get<Incident[]>(`/resources/${resourceId}/incidents`),
+  series: (period: Period) => api.get<IncidentSeries>("/dashboard/incidents", { period }),
+};
+
+export const maintenancesApi = {
+  list: (upcomingOnly = false) => api.get<MaintenanceWindow[]>("/maintenances", { upcomingOnly }),
+  get: (id: string) => api.get<MaintenanceWindow>(`/maintenances/${id}`),
+  create: (data: MaintenanceInput) => api.post<MaintenanceWindow>("/maintenances", data),
+  patch: (id: string, data: Partial<MaintenanceInput>) => api.patch<MaintenanceWindow>(`/maintenances/${id}`, data),
+  finish: (id: string) => api.post<MaintenanceWindow>(`/maintenances/${id}/finish`),
+  forResource: (resourceId: string) => api.get<MaintenanceWindow[]>(`/resources/${resourceId}/maintenances`),
 };

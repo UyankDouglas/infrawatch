@@ -95,6 +95,13 @@ public class MonitoredResource {
     @Column(name = "last_evaluated_at")
     private Instant lastEvaluatedAt;
 
+    @Column(name = "auto_incident", nullable = false)
+    private boolean autoIncident = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_before_maintenance", length = 20)
+    private ResourceStatus statusBeforeMaintenance;
+
     @Version
     @Column(nullable = false)
     private long version;
@@ -199,6 +206,10 @@ public class MonitoredResource {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Set<String> getTags() { return tags; }
+    public boolean isAutoIncident() { return autoIncident; }
+    public ResourceStatus getStatusBeforeMaintenance() { return statusBeforeMaintenance; }
+    public void setAutoIncident(boolean autoIncident) { this.autoIncident = autoIncident; }
+    public void setStatusBeforeMaintenance(ResourceStatus s) { this.statusBeforeMaintenance = s; }
     public HealthCheckConfig getCheckConfig() { return checkConfig; }
 
     public void setGroup(ResourceGroup group) { this.group = group; }

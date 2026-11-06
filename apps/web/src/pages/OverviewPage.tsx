@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -25,18 +26,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { KpiCard } from "@/features/dashboard/KpiCard";
 import { AlertStatusBadge, SeverityBadge } from "@/features/alerts/SeverityBadge";
+import { IncidentStatusBadge, MaintenanceStatusBadge } from "@/features/incidents/IncidentBadges";
+import { IncidentsChart } from "@/features/dashboard/charts";
+import { incidentsApi } from "@/services/endpoints";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AvailabilityChart, LatencyChart, StatusDonut, TypeBars } from "@/features/dashboard/charts";
 import { usePeriod } from "@/hooks/usePeriod";
 import { dashboardApi } from "@/services/endpoints";
-import { formatDuration, formatMs, formatPercent, formatRelative } from "@/lib/format";
+import { formatDateTime, formatDuration, formatMs, formatPercent, formatRelative } from "@/lib/format";
 
 const REFRESH_MS = 15_000;
 
 export function OverviewPage() {
   const [period, setPeriod] = usePeriod("24h");
+  const [maintenanceMode, setMaintenanceMode] = useState<"excluded" | "counted">("excluded");
   const overview = useQuery({
-    queryKey: ["dashboard", "overview", period],
-    queryFn: () => dashboardApi.overview(period),
+    queryKey: ["dashboard", "overview", period, maintenanceMode],
+    queryFn: () => dashboardApi.overview(period, maintenanceMode),
+    refetchInterval: REFRESH_MS,
+  });
+  const incidentSeries = useQuery({
+    queryKey: ["dashboard", "incidents", period],
+    queryFn: () => incidentsApi.series(period),
     refetchInterval: REFRESH_MS,
   });
   const availability = useQuery({
@@ -58,7 +69,20 @@ export function OverviewPage() {
       <PageHeader
         title="Visão Geral"
         description="Indicadores calculados a partir das verificações persistidas. Atualização automática a cada 15 segundos."
-        actions={<PeriodSelect value={period} onChange={setPeriod} />}
+        actions={
+          <>
+            <Select value={maintenanceMode} onValueChange={(v) => setMaintenanceMode(v as "excluded" | "counted")}>
+              <SelectTrigger className="w-[230px]" aria-label="Tratamento de manutenções">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="excluded">Manutenções excluídas</SelectItem>
+                <SelectItem value="counted">Manutenções como indisponíveis</SelectItem>
+              </SelectContent>
+            </Select>
+            <PeriodSelect value={period} onChange={setPeriod} />
+          </>
+        }
       />
 
       {overview.isError && (
@@ -102,11 +126,11 @@ export function OverviewPage() {
             />
             <KpiCard
               title="Incidentes ativos"
-              value={o ? o.activeIncidents : undefined}
+              value={o?.activeIncidents}
               icon={Siren}
-              tone="info"
+              tone={o && o.activeIncidents > 0 ? "down" : "info"}
               loading={loading}
-              hint="Módulo da Fase 4"
+              hint="Abertos, reconhecidos e em investigação"
             />
             <KpiCard
               title="Alertas ativos"
@@ -133,11 +157,15 @@ export function OverviewPage() {
             />
             <KpiCard
               title="Próximas manutenções"
-              value={o ? 0 : undefined}
+              value={o ? o.upcomingMaintenances.length : undefined}
               icon={Wrench}
-              tone="muted"
+              tone="info"
               loading={loading}
-              hint="Módulo da Fase 4"
+              hint={
+                o?.upcomingMaintenances[0]
+                  ? `${o.upcomingMaintenances[0].title} · ${formatRelative(o.upcomingMaintenances[0].startsAt)}`
+                  : "Nenhuma agendada"
+              }
             />
           </section>
 
@@ -311,6 +339,109 @@ export function OverviewPage() {
               </CardContent>
             </Card>
           </section>
+
+          <section className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Incidentes ao longo do tempo</CardTitle>
+                <CardDescription>Incidentes abertos por intervalo (automáticos e manuais).</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {incidentSeries.isLoading ? (
+                  <Skeleton className="h-[200px] w-full" />
+                ) : incidentSeries.data && incidentSeries.data.points.length > 0 ? (
+                  <IncidentsChart data={incidentSeries.data} />
+                ) : (
+                  <EmptyState
+                    compact
+                    icon={Siren}
+                    title="Nenhum incidente no período"
+                    description="Ótimo sinal: nada foi aberto neste intervalo."
+                  />
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex-row items-start justify-between">
+                <div>
+                  <CardTitle>Próximas manutenções</CardTitle>
+                  <CardDescription>Agendadas e em andamento.</CardDescription>
+                </div>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/manutencoes">
+                    Ver <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : o && o.upcomingMaintenances.length > 0 ? (
+                  <ul className="divide-y divide-border">
+                    {o.upcomingMaintenances.map((w) => (
+                      <li key={w.id} className="py-2">
+                        <div className="flex items-center gap-2">
+                          <MaintenanceStatusBadge status={w.status} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{w.title}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(w.startsAt, "dd/MM HH:mm")} → {formatDateTime(w.endsAt, "dd/MM HH:mm")} ·{" "}
+                          {w.resources.length} recurso(s)
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyState compact icon={Wrench} title="Nenhuma manutenção programada" />
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          <Card>
+            <CardHeader className="flex-row items-start justify-between">
+              <div>
+                <CardTitle>Últimos incidentes</CardTitle>
+                <CardDescription>Abertos automaticamente ou pela equipe.</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/incidentes">
+                  Ver incidentes <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-24 w-full" />
+              ) : o && o.recentIncidents.length > 0 ? (
+                <ul className="divide-y divide-border">
+                  {o.recentIncidents.slice(0, 6).map((i) => (
+                    <li key={i.id}>
+                      <Link
+                        to={`/incidentes/${i.id}`}
+                        className="-mx-1 flex flex-wrap items-center gap-2 rounded-md px-1 py-2 outline-none hover:bg-accent/40 focus-visible:bg-accent/40"
+                      >
+                        <span className="font-mono text-xs text-muted-foreground">#{i.number}</span>
+                        <SeverityBadge severity={i.severity} />
+                        <IncidentStatusBadge status={i.status} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{i.title}</span>
+                        <span className="text-xs whitespace-nowrap text-muted-foreground">
+                          {formatRelative(i.openedAt)}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  compact
+                  icon={Siren}
+                  title="Nenhum incidente registrado"
+                  description="Incidentes aparecem aqui quando um recurso fica indisponível ou quando a equipe abre um."
+                />
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="flex-row items-start justify-between">

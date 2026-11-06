@@ -51,6 +51,7 @@ const schema = z.object({
   failureThreshold: z.number({ error: "Informe um número." }).int().min(1).max(20),
   recoveryThreshold: z.number({ error: "Informe um número." }).int().min(1).max(20),
   followRedirects: z.boolean(),
+  autoIncident: z.boolean(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -71,6 +72,7 @@ const DEFAULTS: FormValues = {
   failureThreshold: 3,
   recoveryThreshold: 2,
   followRedirects: false,
+  autoIncident: true,
 };
 
 function toValues(r: Resource): FormValues {
@@ -91,6 +93,7 @@ function toValues(r: Resource): FormValues {
     failureThreshold: r.check?.failureThreshold ?? 3,
     recoveryThreshold: r.check?.recoveryThreshold ?? 2,
     followRedirects: r.check?.followRedirects ?? false,
+    autoIncident: r.autoIncident,
   };
 }
 
@@ -104,6 +107,7 @@ function toInput(v: FormValues, editing: boolean): ResourceInput {
     groupId: v.groupId && v.groupId !== NONE ? v.groupId : null,
     clearGroup: editing && (!v.groupId || v.groupId === NONE) ? true : undefined,
     owner: v.owner || null,
+    autoIncident: v.autoIncident,
     tags: (v.tags ?? "")
       .split(",")
       .map((t) => t.trim())
@@ -316,6 +320,17 @@ export function ResourceFormDialog({ open, onOpenChange, resource, onSaved }: Pr
               <Textarea id="description" rows={2} {...form.register("description")} />
             </div>
           </div>
+
+          <Controller
+            control={form.control}
+            name="autoIncident"
+            render={({ field }) => (
+              <div className="flex items-center gap-2">
+                <Switch id="autoIncident" checked={field.value} onCheckedChange={field.onChange} />
+                <Label htmlFor="autoIncident">Abrir incidente automaticamente quando ficar indisponível</Label>
+              </div>
+            )}
+          />
 
           <Separator />
           <div>

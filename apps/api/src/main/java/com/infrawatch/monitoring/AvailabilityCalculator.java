@@ -23,12 +23,25 @@ public final class AvailabilityCalculator {
 
     private AvailabilityCalculator() {}
 
+    private static boolean counts(ResourceStatus status, MaintenanceMode mode) {
+        if (status == ResourceStatus.MAINTENANCE) return mode == MaintenanceMode.COUNTED_AS_DOWNTIME;
+        return status.isKnown();
+    }
+
     /**
      * @param statusAtStart estado vigente no início da janela
      * @param transitions   transições dentro da janela, em ordem cronológica
      */
+    /** Como tratar períodos em manutenção: EXCLUDED (padrão: fora do tempo observado) ou COUNTED_AS_DOWNTIME. */
+    public enum MaintenanceMode { EXCLUDED, COUNTED_AS_DOWNTIME }
+
     public static Result compute(Instant from, Instant to, ResourceStatus statusAtStart,
                                  List<ResourceStatusHistory> transitions) {
+        return compute(from, to, statusAtStart, transitions, MaintenanceMode.EXCLUDED);
+    }
+
+    public static Result compute(Instant from, Instant to, ResourceStatus statusAtStart,
+                                 List<ResourceStatusHistory> transitions, MaintenanceMode mode) {
         long observed = 0, available = 0;
         Instant cursor = from;
         ResourceStatus current = statusAtStart == null ? ResourceStatus.PENDING : statusAtStart;
@@ -36,7 +49,7 @@ public final class AvailabilityCalculator {
             Instant at = t.getChangedAt().isBefore(from) ? from : t.getChangedAt();
             if (at.isAfter(to)) break;
             long span = Math.max(0, Duration.between(cursor, at).toSeconds());
-            if (current.isKnown()) {
+            if (counts(current, mode)) {
                 observed += span;
                 if (current.isAvailable()) available += span;
             }
@@ -44,7 +57,7 @@ public final class AvailabilityCalculator {
             current = t.getToStatus();
         }
         long tail = Math.max(0, Duration.between(cursor, to).toSeconds());
-        if (current.isKnown()) {
+        if (counts(current, mode)) {
             observed += tail;
             if (current.isAvailable()) available += tail;
         }

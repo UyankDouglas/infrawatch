@@ -72,7 +72,10 @@ public class MonitoringController {
 
     @GetMapping("/metrics")
     public ResourceMetricsResponse metrics(@PathVariable UUID id,
-                                           @RequestParam(defaultValue = "24h") String period) {
+                                           @RequestParam(defaultValue = "24h") String period,
+                                           @RequestParam(defaultValue = "excluded") String maintenance) {
+        AvailabilityCalculator.MaintenanceMode mode = "counted".equalsIgnoreCase(maintenance)
+                ? AvailabilityCalculator.MaintenanceMode.COUNTED_AS_DOWNTIME : AvailabilityCalculator.MaintenanceMode.EXCLUDED;
         OrganizationContext ctx = context.require();
         MonitoredResource resource = requireResource(id, ctx);
         Duration window = Periods.parse(period);
@@ -94,11 +97,13 @@ public class MonitoringController {
         }
         ResourceStatus statusAtStart = transitions.isEmpty()
                 ? resource.getCurrentStatus() : transitions.getFirst().getFromStatus();
-        AvailabilityCalculator.Result availability = AvailabilityCalculator.compute(from, to, statusAtStart, transitions);
+        AvailabilityCalculator.Result availability = AvailabilityCalculator.compute(from, to, statusAtStart, transitions, mode);
 
         return new ResourceMetricsResponse(id, from, to, bucketSeconds, points, availability.percent(),
                 availability.observedSeconds(), availability.availableSeconds(),
-                "Disponibilidade baseada em tempo com estado conhecido; períodos sem dados/aguardando são excluídos. Manutenções: não aplicável nesta fase.");
+                mode == AvailabilityCalculator.MaintenanceMode.EXCLUDED
+                        ? "Disponibilidade baseada em tempo com estado conhecido; períodos sem dados/aguardando e em manutenção são EXCLUÍDOS do tempo observado."
+                        : "Disponibilidade baseada em tempo com estado conhecido; períodos em manutenção são CONTADOS como indisponibilidade.");
     }
 
     @PostMapping("/checks/run")

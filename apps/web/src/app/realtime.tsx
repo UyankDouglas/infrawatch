@@ -73,6 +73,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["maintenances"] });
     };
 
     const handleOrgEvent = (message: IMessage) => {
@@ -130,6 +132,33 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             const fn = a.severity === "CRITICAL" || a.severity === "HIGH" ? toast.error : toast.warning;
             fn(`[${a.severityLabel}] ${a.title}`, { description: a.message ?? undefined });
           }
+          break;
+        }
+        case "incident.created":
+        case "incident.updated":
+        case "incident.resolved": {
+          queryClient.invalidateQueries({ queryKey: ["incidents"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          if (event.type === "incident.created") {
+            const i = event.payload as { number: number; title: string; severityLabel: string };
+            toast.error(`Incidente #${i.number}: ${i.title}`, { description: i.severityLabel });
+          } else if (event.type === "incident.resolved") {
+            const i = event.payload as { number: number; title: string };
+            toast.success(`Incidente #${i.number} resolvido`, { description: i.title });
+          }
+          break;
+        }
+        case "maintenance.scheduled":
+        case "maintenance.updated":
+        case "maintenance.started":
+        case "maintenance.finished":
+        case "maintenance.cancelled": {
+          queryClient.invalidateQueries({ queryKey: ["maintenances"] });
+          queryClient.invalidateQueries({ queryKey: ["resources"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          const w = event.payload as { title: string };
+          if (event.type === "maintenance.started") toast.info(`Manutenção iniciada: ${w.title}`);
+          if (event.type === "maintenance.finished") toast.info(`Manutenção encerrada: ${w.title}`);
           break;
         }
         default:

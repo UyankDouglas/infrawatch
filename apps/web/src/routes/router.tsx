@@ -10,6 +10,9 @@ import { ResourceDetailPage } from "@/pages/ResourceDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { AlertsPage } from "@/pages/AlertsPage";
+import { IncidentsPage } from "@/pages/IncidentsPage";
+import { IncidentDetailPage } from "@/pages/IncidentDetailPage";
+import { MaintenancesPage } from "@/pages/MaintenancesPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -35,26 +38,9 @@ export const router = createBrowserRouter([
           { path: "/recursos", element: <ResourcesPage /> },
           { path: "/recursos/:id", element: <ResourceDetailPage /> },
           { path: "/alertas", element: <AlertsPage /> },
-          {
-            path: "/incidentes",
-            element: (
-              <PlaceholderPage
-                title="Incidentes"
-                phase="Fase 4"
-                description="Abertura automática, timeline, comentários e resolução de incidentes chegam na Fase 4."
-              />
-            ),
-          },
-          {
-            path: "/manutencoes",
-            element: (
-              <PlaceholderPage
-                title="Manutenções"
-                phase="Fase 4"
-                description="Janelas de manutenção programada chegam na Fase 4."
-              />
-            ),
-          },
+          { path: "/incidentes", element: <IncidentsPage /> },
+          { path: "/incidentes/:id", element: <IncidentDetailPage /> },
+          { path: "/manutencoes", element: <MaintenancesPage /> },
           {
             path: "/relatorios",
             element: (

@@ -34,6 +34,7 @@ public final class ResourceDtos {
             UUID groupId,
             @Size(max = 120) String owner,
             @Size(max = 10) List<@Size(min = 1, max = 40) String> tags,
+            Boolean autoIncident,
             @Valid CheckConfigRequest check) {}
 
     public record UpdateResourceRequest(
@@ -47,6 +48,7 @@ public final class ResourceDtos {
             @Size(max = 120) String owner,
             @Size(max = 10) List<@Size(min = 1, max = 40) String> tags,
             Boolean enabled,
+            Boolean autoIncident,
             @Valid CheckConfigRequest check) {}
 
     public record CheckConfigResponse(int intervalSeconds, int timeoutMs, String httpMethod,
@@ -63,7 +65,7 @@ public final class ResourceDtos {
             boolean enabled, ResourceStatus status, String statusLabel, Instant statusSince,
             Instant lastCheckAt, Boolean lastSuccess, Integer lastResponseTimeMs, Integer lastHttpStatus,
             String lastErrorCode, int consecutiveFailures, int consecutiveSuccesses, Instant nextCheckAt,
-            CheckConfigResponse check, Instant createdAt, Instant updatedAt) {}
+            CheckConfigResponse check, boolean autoIncident, Instant createdAt, Instant updatedAt) {}
 
     public record GroupRequest(@NotBlank(message = "Informe o nome do grupo.") @Size(max = 100) String name,
                                @Size(max = 500) String description) {}

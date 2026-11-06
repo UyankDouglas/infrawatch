@@ -37,6 +37,13 @@ import org.springframework.stereotype.Service;
 import com.infrawatch.alerts.AlertEventRepository;
 import com.infrawatch.alerts.AlertMapper;
 import com.infrawatch.alerts.AlertEnums;
+import com.infrawatch.incidents.Incident;
+import com.infrawatch.incidents.IncidentRepository;
+import com.infrawatch.incidents.IncidentService;
+import com.infrawatch.maintenance.MaintenanceService;
+import com.infrawatch.maintenance.MaintenanceWindowRepository;
+import com.infrawatch.dashboard.DashboardDtos.IncidentPoint;
+import com.infrawatch.dashboard.DashboardDtos.IncidentSeries;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -47,19 +54,44 @@ public class DashboardService {
     private final ResourceStatusHistoryRepository history;
     private final AlertEventRepository alerts;
     private final AlertMapper alertMapper;
+    private final IncidentRepository incidents;
+    private final IncidentService incidentService;
+    private final MaintenanceWindowRepository maintenances;
+    private final MaintenanceService maintenanceService;
 
     public DashboardService(MonitoredResourceRepository resources, HealthCheckExecutionRepository executions,
                             ResourceStatusHistoryRepository history, AlertEventRepository alerts,
-                            AlertMapper alertMapper) {
+                            AlertMapper alertMapper, IncidentRepository incidents, IncidentService incidentService,
+                            MaintenanceWindowRepository maintenances, MaintenanceService maintenanceService) {
         this.resources = resources;
         this.executions = executions;
         this.history = history;
         this.alerts = alerts;
         this.alertMapper = alertMapper;
+        this.incidents = incidents;
+        this.incidentService = incidentService;
+        this.maintenances = maintenances;
+        this.maintenanceService = maintenanceService;
+    }
+
+    @Transactional(readOnly = true)
+    public IncidentSeries incidentSeries(UUID orgId, String period) {
+        Duration window = Periods.parse(period);
+        Instant to = Instant.now();
+        Instant from = to.minus(window);
+        int bucket = Math.max(Periods.bucketSeconds(window), 3600);
+        List<IncidentPoint> points = incidents.openedPerBucket(orgId, from, to, bucket).stream()
+                .map(b -> new IncidentPoint(b.getBucket(), b.getTotal(), b.getAutomatic())).toList();
+        return new IncidentSeries(from, to, bucket, points);
     }
 
     @Transactional(readOnly = true)
     public Overview overview(UUID orgId, String period) {
+        return overview(orgId, period, AvailabilityCalculator.MaintenanceMode.EXCLUDED);
+    }
+
+    @Transactional(readOnly = true)
+    public Overview overview(UUID orgId, String period, AvailabilityCalculator.MaintenanceMode mode) {
         Duration window = Periods.parse(period);
         Instant to = Instant.now();
         Instant from = to.minus(window);
@@ -91,7 +123,7 @@ public class DashboardService {
             List<ResourceStatusHistory> own = byResource.getOrDefault(r.getId(), List.of());
             Instant start = r.getCreatedAt().isAfter(from) ? r.getCreatedAt() : from;
             ResourceStatus atStart = own.isEmpty() ? r.getCurrentStatus() : own.getFirst().getFromStatus();
-            AvailabilityCalculator.Result res = AvailabilityCalculator.compute(start, to, atStart, own);
+            AvailabilityCalculator.Result res = AvailabilityCalculator.compute(start, to, atStart, own, mode);
             observed += res.observedSeconds();
             availableSeconds += res.availableSeconds();
         }
@@ -120,13 +152,19 @@ public class DashboardService {
                 byStatus.get(ResourceStatus.DEGRADED),
                 byStatus.get(ResourceStatus.PENDING) + byStatus.get(ResourceStatus.UNKNOWN),
                 byStatus.get(ResourceStatus.PENDING), byStatus.get(ResourceStatus.UNKNOWN), paused,
-                0, alerts.countByOrganizationIdAndStatusIn(orgId, List.of(AlertEnums.Status.OPEN, AlertEnums.Status.ACKNOWLEDGED)),
+                incidents.countByOrganizationIdAndStatusIn(orgId, List.of(Incident.Status.OPEN, Incident.Status.ACKNOWLEDGED, Incident.Status.INVESTIGATING)),
+                alerts.countByOrganizationIdAndStatusIn(orgId, List.of(AlertEnums.Status.OPEN, AlertEnums.Status.ACKNOWLEDGED)),
                 availability, observed,
-                "Tempo disponível ÷ tempo observado com estado conhecido, somado entre os recursos. Períodos aguardando/sem dados são excluídos. Manutenções: Fase 4.",
+                mode == AvailabilityCalculator.MaintenanceMode.EXCLUDED
+                        ? "Tempo disponível ÷ tempo observado com estado conhecido, somado entre os recursos. Períodos aguardando/sem dados e em manutenção são excluídos."
+                        : "Tempo disponível ÷ tempo observado, somado entre os recursos. Períodos em manutenção são contados como indisponibilidade.",
                 avgResponse == null ? null : Math.round(avgResponse * 10) / 10.0, checks, checks - okChecks,
                 distribution, types, problematic,
                 all.stream().map(DashboardService::summary).toList(), recent,
-                alerts.findTop10ByOrganizationIdOrderByTriggeredAtDesc(orgId).stream().map(alertMapper::toResponse).toList());
+                alerts.findTop10ByOrganizationIdOrderByTriggeredAtDesc(orgId).stream().map(alertMapper::toResponse).toList(),
+                incidents.findTop10ByOrganizationIdOrderByOpenedAtDesc(orgId).stream().map(incidentService::toResponse).toList(),
+                maintenances.findUpcomingOrActive(orgId).stream().limit(5).map(maintenanceService::toResponse).toList(),
+                mode == AvailabilityCalculator.MaintenanceMode.EXCLUDED ? "excluded" : "counted");
     }
 
     @Transactional(readOnly = true)

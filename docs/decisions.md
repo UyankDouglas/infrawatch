@@ -27,3 +27,7 @@
 | 23 | Um alerta ativo por regra×recurso garantido por índice único parcial | Supressão de duplicados no banco, não só em código | `ux_alert_events_active` |
 | 24 | Notificações materializadas por usuário (fan-out) com `dedupe_key` | Leitura simples, "lida" por usuário e idempotência em reprocessamentos | Volume proporcional ao nº de membros; canais externos leem a mesma tabela (Fase 5) |
 | 25 | Sequência de eventos em memória por organização | Suficiente para uma instância; o cliente ressincroniza via REST em qualquer salto ou reconexão | Com várias instâncias, a sequência passa a vir de Redis ou do banco |
+| 26 | Incidente automático único por recurso via índice único parcial; resolução automática só para origem `AUTOMATIC` | Evita duplicidade e nunca encerra trabalho humano sem decisão explícita | `ux_incidents_auto_active`; manuais exigem transição do operador |
+| 27 | Timeline do incidente = histórico + comentários + transições do recurso no período | Preserva os eventos reais sem reescrever; nada é editado retroativamente | Montada em leitura (`IncidentService.detail`) |
+| 28 | Manutenção coloca o recurso em `MAINTENANCE`, resolve alertas ativos e, ao encerrar, volta a `PENDING` | Separar falha planejada de inesperada e não herdar falhas da janela | Verificações continuam só para registrar latência; próxima coleta define o estado |
+| 29 | Disponibilidade com modo explícito (`excluded` padrão / `counted`) | O relatório sempre diz como tratou manutenções | Parâmetro `maintenance` em dashboard e métricas do recurso |

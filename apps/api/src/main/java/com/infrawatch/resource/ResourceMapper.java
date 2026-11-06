@@ -20,6 +20,6 @@ public final class ResourceMapper {
                 r.isEnabled(), r.getCurrentStatus(), r.getCurrentStatus().getLabel(), r.getStatusSince(),
                 r.getLastCheckAt(), r.getLastSuccess(), r.getLastResponseTimeMs(), r.getLastHttpStatus(),
                 r.getLastErrorCode(), r.getConsecutiveFailures(), r.getConsecutiveSuccesses(), r.getNextCheckAt(),
-                check, r.getCreatedAt(), r.getUpdatedAt());
+                check, r.isAutoIncident(), r.getCreatedAt(), r.getUpdatedAt());
     }
 }

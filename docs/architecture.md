@@ -14,6 +14,7 @@ flowchart LR
         MON[monitoring<br/>despachante · executor HTTP<br/>máquina de estados]
         MET[metrics<br/>agentes · amostras · rollups]
         ALR[alerts · notifications<br/>motor por eventos]
+        INC[incidents · maintenance]
         RT[realtime<br/>broadcaster pós-commit]
         DASH[dashboard]
         AUD[audit]
@@ -41,6 +42,8 @@ flowchart LR
 | `metrics` | Agentes autorizados, credenciais (hash), ingestão de amostras, rollups, retenção, leitura de métricas de CPU/RAM/disco |
 | `alerts` | Regras, motor de alertas (eventos de domínio), eventos de alerta, reconhecimento/resolução |
 | `notifications` | Notificações internas por usuário (fan-out, dedupe) |
+| `incidents` | Incidentes automáticos/manuais, transições, comentários, histórico e timeline |
+| `maintenance` | Janelas de manutenção, agendador, entrada/saída do estado `MAINTENANCE` |
 | `realtime` | STOMP/WebSocket: autorização por organização, broadcaster pós-commit, envelope com sequência |
 | `common.events` | Eventos de domínio (`ResourceStatusChanged`, `CheckCompleted`, `AgentSampleReceived`, `AlertChanged`, `NotificationCreated`) |
 | `dashboard` | Agregações para a Visão Geral |

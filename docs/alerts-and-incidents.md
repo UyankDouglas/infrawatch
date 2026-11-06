@@ -15,7 +15,7 @@ Disponibilidade (%) = tempo disponível / tempo observado × 100
 - A janela de um recurso começa, no máximo, na sua criação.
 - O cálculo é feito a partir de `resource_status_history` (`AvailabilityCalculator`), não de contagem de verificações.
 
-Na Fase 4, os relatórios indicarão se a disponibilidade **inclui ou exclui** janelas de manutenção (padrão: exclui, como `MAINTENANCE` já é tratado hoje).
+Manutenções: por padrão **excluídas** do tempo observado (`maintenance=excluded`); opcionalmente **contadas como indisponibilidade** (`maintenance=counted`). Dashboard e métricas do recurso aceitam o parâmetro e explicitam o modo.
 
 O gráfico "Disponibilidade por período" da Visão Geral usa outra métrica, explicitada na legenda: **percentual de verificações bem-sucedidas por intervalo** (baseada em `health_check_executions`). As duas convivem porque respondem a perguntas diferentes (tempo em estado × taxa de sucesso das sondagens).
 
@@ -53,7 +53,7 @@ flowchart LR
 - **Estado**: ao entrar em `DOWN` / `DEGRADED` / `UNKNOWN` (agente) a regra correspondente abre; ao sair, resolve com `CONDITION_CLEARED`.
 - **Numéricas**: cada leitura dentro do limite zera a contagem e resolve o alerta ativo; leituras fora incrementam `alert_condition_states` e só abrem quando `occurrences` e `duration_seconds` forem atendidos (histerese simples).
 - **Supressão de duplicados**: índice único parcial `(rule_id, resource_id) WHERE status <> 'RESOLVED'`; enquanto o alerta estiver ativo, novas violações apenas atualizam `last_evaluated_at`, `value` e `occurrence_count`. Nenhuma notificação é repetida.
-- **Manutenção** (Fase 4): transições para `MAINTENANCE` e recursos em manutenção são ignorados pelo motor.
+- **Manutenção**: transições para `MAINTENANCE` e recursos em manutenção são ignorados pelo motor; ao iniciar uma janela, alertas ativos do recurso são resolvidos com `MAINTENANCE`.
 
 ### Ciclo de vida (`alert_events`)
 
@@ -61,22 +61,34 @@ flowchart LR
 
 ### Notificações internas (`notifications`)
 
-Uma linha por **membro** da organização (fan-out na mesma transação). Tipos: recurso indisponível, recurso recuperado, alerta disparado, alerta resolvido (incidentes e manutenções na Fase 4). `dedupe_key` único por usuário evita duplicidade em reprocessamentos (padrão outbox simplificado). E-mail e webhooks (Fase 5) consumirão esta tabela.
+Uma linha por **membro** da organização (fan-out na mesma transação). Tipos: recurso indisponível, recurso recuperado, alerta disparado, alerta resolvido, incidente criado, incidente atribuído (só ao responsável), manutenção agendada. `dedupe_key` único por usuário evita duplicidade em reprocessamentos (padrão outbox simplificado). E-mail e webhooks (Fase 5) consumirão esta tabela.
 
 ### Tempo real
 
-Ver [architecture.md](architecture.md#tempo-real-websocket). Eventos: `resource.status_changed`, `resource.check_completed`, `alert.triggered`, `alert.acknowledged`, `alert.resolved`, `notification.created`.
+Ver [architecture.md](architecture.md#tempo-real-websocket). Eventos: `resource.status_changed`, `resource.check_completed`, `alert.triggered`, `alert.acknowledged`, `alert.resolved`, `incident.created`, `incident.updated`, `incident.resolved`, `maintenance.scheduled|updated|started|finished|cancelled`, `notification.created`.
 
-## Incidentes (Fase 4 — definições)
+## Incidentes (Fase 4 — implementado)
 
-- Abertura automática na transição para `DOWN` (configurável por recurso/grupo) ou manual.
-- Status: Aberto → Reconhecido → Em investigação → Resolvido → Encerrado.
-- **MTTR** = média de (resolução − abertura) dos incidentes resolvidos no período.
-- **MTBF** = média do tempo entre o fim de um incidente e o início do seguinte, por recurso; informado apenas quando houver ≥ 2 incidentes no período, com a limitação explícita.
-- Incidente automático é resolvido quando o recurso volta a `UP`/`DEGRADED` (regra configurável); incidentes manuais nunca são encerrados automaticamente.
-- A timeline preserva os eventos reais (transições, comentários, atribuições) — nada é reescrito.
+### Abertura
 
-## Manutenções (Fase 4 — definições)
+- **Automática** (`IncidentEngine`, após o motor de alertas na mesma transação): ao confirmar `DOWN` em um recurso com `auto_incident = true` e fora de manutenção, abre um incidente **Crítico**, origem `AUTOMATIC`, vinculado ao alerta de indisponibilidade quando existir. Índice único parcial garante **um** incidente automático ativo por recurso.
+- **Manual** (`POST /incidents`, Operador+): título, descrição, severidade, recurso opcional e responsável opcional (que recebe notificação `INCIDENT_ASSIGNED`).
+- Toda abertura gera notificação `INCIDENT_CREATED` para a organização, evento `incident.created` por WebSocket e entrada `CREATED` no histórico.
 
-- Durante a janela o recurso exibe `MAINTENANCE`; as verificações continuam (para registrar latência), mas transições não geram alertas/incidentes.
-- Ao encerrar, o estado é recalculado pela próxima verificação (sem herdar falhas da janela).
+### Ciclo de vida
+
+`OPEN` → `ACKNOWLEDGED` → `INVESTIGATING` → `RESOLVED` → `CLOSED`, com atalhos permitidos (`OPEN`/`ACKNOWLEDGED` → `RESOLVED`) e reabertura (`RESOLVED` → `INVESTIGATING`). As transições válidas são devolvidas pela API (`allowedTransitions`) e qualquer outra retorna `409`.
+
+- **Automáticos** são resolvidos quando o recurso volta a `UP`/`DEGRADED` (`AUTO_RESOLVED`, causa preenchida com o motivo da recuperação). **Manuais nunca são encerrados automaticamente.**
+- Cada alteração (status, responsável, severidade, causa, observações, título, descrição) gera uma linha em `incident_history` com usuário e horário; comentários ficam em `incident_comments`.
+- **Timeline** (`GET /incidents/{id}`): histórico + comentários + transições de estado do recurso ocorridas entre a abertura e o encerramento — eventos reais, nunca reescritos.
+- Duração = `resolved_at − opened_at` (ou até agora). **MTTR** (resumo) = média das durações dos incidentes resolvidos nas últimas 24 h; sem incidentes resolvidos o indicador é informado como indisponível. MTBF e relatórios por período ficam para a Fase 5.
+
+## Manutenções programadas (Fase 4 — implementado)
+
+- `POST /maintenances` (Operador+): título, motivo, início, término (≤ 30 dias), recursos, responsável. Notificação `MAINTENANCE_SCHEDULED`.
+- `MaintenanceScheduler` (a cada 20 s) **inicia** janelas vencidas e **encerra** as expiradas; `POST /maintenances/{id}/finish` encerra antecipadamente (ou cancela uma agendada).
+- Ao iniciar: recurso → `MAINTENANCE` (estado anterior guardado), contadores zerados, alertas ativos do recurso resolvidos com `MAINTENANCE`, transição registrada no histórico.
+- Durante a janela: **verificações continuam** e são registradas (latência disponível), mas a máquina de estados mantém `MAINTENANCE`; o motor de alertas e o de incidentes ignoram o recurso; nenhuma notificação é gerada.
+- Ao encerrar: recurso → `PENDING` com próxima verificação imediata; o estado real é definido pela coleta seguinte, sem herdar falhas da janela.
+- **Disponibilidade**: por padrão o tempo em manutenção é **excluído** do tempo observado (`maintenance=excluded`); com `maintenance=counted` é contado como indisponibilidade. O dashboard e as métricas do recurso aceitam o parâmetro e explicitam o modo na nota.

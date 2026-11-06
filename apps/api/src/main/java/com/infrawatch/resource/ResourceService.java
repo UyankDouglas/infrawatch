@@ -86,6 +86,7 @@ public class ResourceService {
         if (req.groupId() != null) {
             resource.setGroup(requireGroup(ctx, req.groupId()));
         }
+        if (req.autoIncident() != null) resource.setAutoIncident(req.autoIncident());
         applyCheckConfig(resource.getCheckConfig(), req.check());
         MonitoredResource saved = resources.save(resource);
         audit.record(ctx.organizationId(), ctx.userId(), "resource.created", "monitored_resource", saved.getId(),
@@ -132,6 +133,10 @@ public class ResourceService {
                 resource.setNextCheckAt(Instant.now());
             }
             changes.add(req.enabled() ? "monitoramento ativado" : "monitoramento pausado");
+        }
+        if (req.autoIncident() != null && req.autoIncident() != resource.isAutoIncident()) {
+            resource.setAutoIncident(req.autoIncident());
+            changes.add(req.autoIncident() ? "incidente automático ativado" : "incidente automático desativado");
         }
         if (req.check() != null) {
             applyCheckConfig(resource.getCheckConfig(), req.check());

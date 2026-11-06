@@ -20,8 +20,8 @@ const NAV = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard, end: true },
   { to: "/recursos", label: "Recursos Monitorados", icon: Server },
   { to: "/alertas", label: "Alertas", icon: BellRing },
-  { to: "/incidentes", label: "Incidentes", icon: Siren, soon: "F4" },
-  { to: "/manutencoes", label: "Manutenções", icon: Wrench, soon: "F4" },
+  { to: "/incidentes", label: "Incidentes", icon: Siren },
+  { to: "/manutencoes", label: "Manutenções", icon: Wrench },
   { to: "/relatorios", label: "Relatórios", icon: ChartColumnBig, soon: "F5" },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ];

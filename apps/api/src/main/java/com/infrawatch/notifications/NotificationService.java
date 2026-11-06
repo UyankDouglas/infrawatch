@@ -41,6 +41,20 @@ public class NotificationService {
         this.events = events;
     }
 
+    /** Envia a um único usuário (ex.: atribuição de incidente). */
+    @Transactional
+    public boolean notifyUser(UUID organizationId, UUID userId, Notification.Type type, Severity severity, String title,
+                              String message, String link, UUID resourceId, UUID alertEventId, String dedupeKey) {
+        if (dedupeKey != null && notifications.existsByUserIdAndDedupeKey(userId, dedupeKey)) return false;
+        String email = members.findByUserIdAndOrganizationId(userId, organizationId)
+                .map(m -> m.getUser().getEmail()).orElse(null);
+        if (email == null) return false;
+        Notification n = notifications.save(new Notification(organizationId, userId, type, severity, title, message, link,
+                resourceId, alertEventId, dedupeKey));
+        events.publishEvent(new NotificationCreated(organizationId, userId, email, NotificationDto.of(n)));
+        return true;
+    }
+
     /** Envia a todos os membros da organização. Retorna quantas notificações foram criadas. */
     @Transactional
     public int notifyOrganization(UUID organizationId, Notification.Type type, Severity severity, String title,

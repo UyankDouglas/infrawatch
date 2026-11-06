@@ -74,6 +74,7 @@ export interface Resource {
   consecutiveSuccesses: number;
   nextCheckAt: string;
   check: CheckConfig | null;
+  autoIncident: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +109,7 @@ export interface ResourceInput {
   owner?: string | null;
   tags?: string[];
   enabled?: boolean;
+  autoIncident?: boolean;
   check?: CheckConfigInput;
 }
 
@@ -221,6 +223,9 @@ export interface Overview {
   resources: ResourceSummary[];
   recentTransitions: TransitionSummary[];
   recentAlerts: import("./alerts").AlertEvent[];
+  recentIncidents: import("./incidents").Incident[];
+  upcomingMaintenances: import("./incidents").MaintenanceWindow[];
+  maintenanceMode: "excluded" | "counted";
 }
 
 export interface AvailabilitySeries {

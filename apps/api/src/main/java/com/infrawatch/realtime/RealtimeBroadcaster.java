@@ -3,6 +3,8 @@ package com.infrawatch.realtime;
 import com.infrawatch.common.events.DomainEvents.AlertChanged;
 import com.infrawatch.common.events.DomainEvents.CheckCompleted;
 import com.infrawatch.common.events.DomainEvents.NotificationCreated;
+import com.infrawatch.common.events.DomainEvents.IncidentChanged;
+import com.infrawatch.common.events.DomainEvents.MaintenanceChanged;
 import com.infrawatch.common.events.DomainEvents.ResourceStatusChanged;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -57,6 +59,16 @@ public class RealtimeBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void on(AlertChanged e) {
         publish(e.organizationId(), "alert." + e.kind(), Instant.now(), e.payload());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void on(IncidentChanged e) {
+        publish(e.organizationId(), "incident." + e.kind(), Instant.now(), e.payload());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void on(MaintenanceChanged e) {
+        publish(e.organizationId(), "maintenance." + e.kind(), Instant.now(), e.payload());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)

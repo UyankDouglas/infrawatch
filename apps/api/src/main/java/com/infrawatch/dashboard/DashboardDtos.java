@@ -33,7 +33,14 @@ public final class DashboardDtos {
             List<StatusCount> statusDistribution, List<TypeCount> resourcesByType,
             List<ResourceSummary> problematic, List<ResourceSummary> resources,
             List<TransitionSummary> recentTransitions,
-            List<com.infrawatch.alerts.AlertDtos.AlertResponse> recentAlerts) {}
+            List<com.infrawatch.alerts.AlertDtos.AlertResponse> recentAlerts,
+            List<com.infrawatch.incidents.IncidentDtos.IncidentResponse> recentIncidents,
+            List<com.infrawatch.maintenance.MaintenanceDtos.WindowResponse> upcomingMaintenances,
+            String maintenanceMode) {}
+
+    public record IncidentPoint(Instant bucket, long total, long automatic) {}
+
+    public record IncidentSeries(Instant from, Instant to, int bucketSeconds, List<IncidentPoint> points) {}
 
     public record AvailabilityPoint(Instant bucket, long total, long successes, Double successRate) {}
 

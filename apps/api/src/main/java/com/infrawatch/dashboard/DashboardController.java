@@ -22,8 +22,17 @@ public class DashboardController {
     }
 
     @GetMapping("/overview")
-    public Overview overview(@RequestParam(defaultValue = "24h") String period) {
-        return service.overview(context.require().organizationId(), period);
+    public Overview overview(@RequestParam(defaultValue = "24h") String period,
+                             @RequestParam(defaultValue = "excluded") String maintenance) {
+        var mode = "counted".equalsIgnoreCase(maintenance)
+                ? com.infrawatch.monitoring.AvailabilityCalculator.MaintenanceMode.COUNTED_AS_DOWNTIME
+                : com.infrawatch.monitoring.AvailabilityCalculator.MaintenanceMode.EXCLUDED;
+        return service.overview(context.require().organizationId(), period, mode);
+    }
+
+    @GetMapping("/incidents")
+    public com.infrawatch.dashboard.DashboardDtos.IncidentSeries incidents(@RequestParam(defaultValue = "7d") String period) {
+        return service.incidentSeries(context.require().organizationId(), period);
     }
 
     @GetMapping("/availability")

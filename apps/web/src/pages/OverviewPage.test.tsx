@@ -53,6 +53,9 @@ const overview: Overview = {
   resources: [],
   recentTransitions: [],
   recentAlerts: [],
+  recentIncidents: [],
+  upcomingMaintenances: [],
+  maintenanceMode: "excluded",
 };
 
 describe("OverviewPage", () => {

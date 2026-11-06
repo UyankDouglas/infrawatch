@@ -7,7 +7,8 @@
 **Fase 1 — Fundação e monitoramento funcional: CONCLUÍDA (2026-11-06).**
 **Fase 2 — Métricas de infraestrutura (agente autorizado): CONCLUÍDA (2026-11-06).**
 **Fase 3 — Tempo real (WebSocket) e alertas: CONCLUÍDA (2026-11-06).**
-Próxima: **Fase 4 — Incidentes e manutenções programadas**.
+**Fase 4 — Incidentes e manutenções programadas: CONCLUÍDA (2026-11-06).**
+Próxima: **Fase 5 — Relatórios e administração**.
 
 ## Stack e versões escolhidas (verificadas no Maven Central / npm em 2026-11-06)
 
@@ -72,6 +73,17 @@ Próxima: **Fase 4 — Incidentes e manutenções programadas**.
 - [x] nginx `/ws` com upgrade; Vite proxy `ws:true`
 - [x] Métricas internas: `infrawatch.engine.alerts.triggered|resolved`, `infrawatch.engine.realtime.events`
 
+## Funcionalidades concluídas (Fase 4)
+
+- [x] Migração `V4__incidentes_manutencoes.sql`: `incidents` (número sequencial por organização, índice único de incidente automático ativo por recurso), `incident_comments`, `incident_history`, `maintenance_windows` + `maintenance_window_resources`; colunas `auto_incident` e `status_before_maintenance` em `monitored_resources`
+- [x] `IncidentEngine` (após o motor de alertas): abre incidente automático crítico ao confirmar `DOWN` (fora de manutenção, recurso com `auto_incident`), vinculado ao alerta; resolve automáticos na recuperação; registra transições do recurso na timeline de incidentes ativos
+- [x] `IncidentService`/API: criação manual, PATCH (título, descrição, severidade, responsável, causa, observações — tudo historiado), transições validadas (`allowedTransitions`), comentários, timeline unificada, resumo com MTTR 24 h, alertas/incidentes por recurso; notificações `INCIDENT_CREATED` (organização) e `INCIDENT_ASSIGNED` (responsável)
+- [x] `MaintenanceService` + `MaintenanceScheduler`: agendar, editar, encerrar antecipadamente/cancelar; entrada em `MAINTENANCE` resolve alertas ativos (`Resolution.MAINTENANCE`) e suprime alertas/incidentes/notificações; saída → `PENDING` com verificação imediata; notificação `MAINTENANCE_SCHEDULED`
+- [x] Disponibilidade com modo de manutenção (`maintenance=excluded|counted`) no dashboard e nas métricas do recurso, com nota explícita
+- [x] Dashboard: KPI real de incidentes ativos e de próximas manutenções, gráfico "Incidentes ao longo do tempo" (`GET /dashboard/incidents`), painéis "Últimos incidentes" e "Próximas manutenções", seletor de tratamento de manutenções
+- [x] Frontend: páginas **Incidentes** (KPIs, filtros, criar) e **Incidente** (timeline, comentários, ações de status, edição, responsável), **Manutenções** (próximas/em andamento, histórico, agendar com seleção de recursos, encerrar/cancelar); painel de incidentes/manutenções na página do recurso; opção "abrir incidente automaticamente" no formulário; eventos `incident.*` e `maintenance.*` em tempo real
+- [x] Docs: alerts-and-incidents (incidentes e manutenções implementados), architecture, decisions 26–29, README
+
 ## Testes
 
 | Suíte | Como rodar | Último resultado |
@@ -83,6 +95,8 @@ Próxima: **Fase 4 — Incidentes e manutenções programadas**.
 | Frontend Fase 2: AgentMetricsPanel (4) | idem | 22/22 no total |
 | Backend Fase 3: AlertEngineIT 6 (regras padrão, alerta único + notificações + recuperação, reconhecimento/resolução/RBAC/auditoria, latência com ocorrências, regras de agente + falta de dados, CRUD de regras), WebSocketIT 3 (eventos da própria organização + notificação do usuário, recusa de outra organização, handshake sem sessão) | idem (total 82) | ver "Execução" |
 | Frontend Fase 3: NotificationsBell (1) | idem | 23/23 no total |
+| Backend Fase 4: IncidentsIT 3 (ciclo automático com alerta vinculado e timeline, ciclo manual com atribuição/comentários/histórico/MTTR/auditoria, isolamento + RBAC + opt-out), MaintenanceIT 2 (supressão de alertas/incidentes, encerramento antecipado e recálculo, agendamento/cancelamento/agendador) | idem (total 87) | ver "Execução" |
+| Frontend Fase 4: IncidentsPage (1) | idem | 24/24 no total |
 | E2E (Playwright, 3 cenários): cadastro → recurso → verificação real → falha controlada → Indisponível → recuperação → isolamento | `docker compose --profile full up -d && cd e2e && E2E_DEMO_TARGET_HOST=host.docker.internal npx playwright test` | 3/3 passando (dev local e Docker completo) |
 
 ### Execução manual validada em 2026-11-06 (Fase 2)
@@ -110,10 +124,11 @@ Próxima: **Fase 4 — Incidentes e manutenções programadas**.
 - Sequência de eventos WebSocket é por instância (memória); com múltiplas instâncias passa a vir de Redis/banco. O cliente ressincroniza via REST em qualquer salto.
 - Rollups são gerados a cada 5 min; nos primeiros minutos após instalar um agente a consulta de 7 d usa as amostras brutas (`granularity: raw_fallback`).
 
-## Próximas tarefas (Fase 4)
+## Próximas tarefas (Fase 5)
 
-1. Migração V4: `incidents`, `incident_comments`, `incident_history`, `maintenance_windows` (+ recursos associados).
-2. Abertura automática de incidente na transição para Indisponível (configurável), vinculada ao alerta; resolução automática na recuperação apenas para incidentes automáticos.
-3. Gestão manual: criar, atribuir, reconhecer, investigar, resolver, encerrar; comentários; timeline com eventos reais; histórico de alterações; eventos WebSocket `incident.*` e notificações (criado, atribuído).
-4. Manutenções programadas: seleção de recursos, início/fim, motivo, responsável, encerrar antecipadamente; estado `MAINTENANCE` durante a janela; alertas/notificações suprimidos; verificações mantidas; disponibilidade com/sem manutenção.
-5. Páginas Incidentes e Manutenções; KPIs reais no dashboard ("Incidentes ativos", "Próximas manutenções").
+1. Relatórios: disponibilidade por recurso e período (com/sem manutenção), tempo total indisponível, quantidade de incidentes, MTTR, MTBF (com limitação explícita quando < 2 incidentes), tempo médio e picos de latência, evolução de CPU/memória/disco; página Relatórios com filtros.
+2. Exportações CSV e XLSX com histórico de exportações e permissões consistentes.
+3. Canais externos consumindo `notifications`: e-mail via SMTP (desativado em dev) e webhooks de saída para destinos previamente cadastrados/autorizados, com fila/outbox e retentativas.
+4. Gerenciamento de membros (convite, alteração de perfil, remoção), página de auditoria completa com filtros.
+5. Observabilidade: Micrometer Prometheus registry, Prometheus/Grafana opcionais no Compose, OpenTelemetry tracing configurável.
+6. Spring Session JDBC (sessões persistentes) e rate limit distribuído se Redis for adicionado.

@@ -29,4 +29,10 @@ public final class DomainEvents {
     public record AlertChanged(UUID organizationId, String kind, Object payload) {}
 
     public record NotificationCreated(UUID organizationId, UUID userId, String userEmail, Object payload) {}
+
+    /** kind: created | updated | resolved */
+    public record IncidentChanged(UUID organizationId, String kind, Object payload) {}
+
+    /** kind: scheduled | updated | started | finished | cancelled */
+    public record MaintenanceChanged(UUID organizationId, String kind, Object payload) {}
 }

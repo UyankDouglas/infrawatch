@@ -18,7 +18,7 @@ Equipes de TI, suporte e operações precisam saber **agora** se um serviço est
 
 O InfraWatch centraliza isso: você cadastra os recursos que administra, o backend verifica cada um periodicamente, confirma falhas com histerese (nada de alarme por uma oscilação), registra tudo no banco e mostra indicadores calculados a partir dos dados reais.
 
-## Funcionalidades (Fases 1 a 3 concluídas)
+## Funcionalidades (Fases 1 a 4 concluídas)
 
 - **Contas e organizações** multi-tenant com perfis Administrador / Operador / Visualizador.
 - **Recursos monitorados**: serviços HTTP/HTTPS e aplicações com health check, com grupo, ambiente, responsável, tags e configuração de verificação (intervalo ≥ 30 s, timeout, códigos HTTP esperados, limite de degradação, limiares de falha e recuperação).
@@ -31,7 +31,9 @@ O InfraWatch centraliza isso: você cadastra os recursos que administra, o backe
 - **Métricas de servidor por agente autorizado** (Fase 2): CPU, memória, disco, uptime e carga coletados por um agente leve em Java no próprio host, enviados por token com rotação/revogação; métricas não suportadas aparecem como *Indisponível*; séries brutas até 6 h e agregadas (5 min / 1 h) com retenção configurável; agente silencioso leva o recurso a *Sem dados*, nunca a *Indisponível*.
 - **Tempo real** (Fase 3): WebSocket autenticado pela sessão com isolamento por organização; a interface recebe transições de estado, verificações, alertas e notificações sem recarregar, reconecta com espera progressiva e ressincroniza pela API REST.
 - **Alertas** (Fase 3): regras por recurso, grupo ou organização para indisponibilidade, degradação, latência, CPU, memória, disco e falta de dados do agente, com severidade, ocorrências consecutivas, duração mínima e histerese; um único alerta por condição enquanto ela persistir; reconhecimento e resolução com auditoria.
-- **Notificações internas**: sino na topbar com não lidas, geradas para indisponibilidade, recuperação e alertas, sem duplicidade.
+- **Notificações internas**: sino na topbar com não lidas, geradas para indisponibilidade, recuperação, alertas, incidentes e manutenções, sem duplicidade.
+- **Incidentes** (Fase 4): abertos automaticamente quando um recurso é confirmado indisponível (vinculados ao alerta) ou manualmente; status Aberto → Reconhecido → Em investigação → Resolvido → Encerrado, atribuição, comentários, causa, observações e timeline com histórico real; automáticos resolvem na recuperação, manuais nunca sozinhos; MTTR das últimas 24 h.
+- **Manutenções programadas** (Fase 4): janelas por recurso com início/fim, motivo e responsável; recursos ficam "Em manutenção", alertas e incidentes são suprimidos, verificações continuam; encerramento antecipado; disponibilidade com manutenção excluída ou contada.
 - **Ambiente de demonstração** em Docker com três serviços HTTP controláveis deterministicamente e um container com o agente reportando métricas reais.
 - **Observabilidade própria**: Actuator, Micrometer, correlation id, logs estruturados.
 
@@ -65,7 +67,7 @@ Detalhes em [docs/architecture.md](docs/architecture.md).
 ```
 infrawatch/
 ├── apps/
-│   ├── api/            Spring Boot (com/infrawatch/{auth,organization,resource,monitoring,metrics,alerts,notifications,realtime,dashboard,audit,security,common,seed})
+│   ├── api/            Spring Boot (com/infrawatch/{auth,organization,resource,monitoring,metrics,alerts,notifications,incidents,maintenance,realtime,dashboard,audit,security,common,seed})
 │   ├── agent/          Agente Java 21 sem dependências (CPU, RAM, disco, uptime) + Dockerfile
 │   ├── web/            React + TypeScript (src/{app,components,features,hooks,layouts,pages,routes,services,types})
 │   └── demo-services/  Servidor Node de demonstração (healthy / degraded / flaky)
@@ -140,6 +142,10 @@ Uma falha isolada **não** derruba o recurso: são necessárias `N` falhas conse
 
 Regras definem **o que** observar (indisponível, degradado, latência, CPU, memória, disco, agente sem dados), **onde** (recurso, grupo ou toda a organização), **quando** (operador, limite, ocorrências consecutivas, duração mínima) e **com que severidade**. O motor consome os mesmos eventos que atualizam o estado dos recursos, na mesma transação: ao confirmar uma condição abre um alerta (único por regra e recurso), notifica os membros e publica por WebSocket; quando a condição normaliza, resolve automaticamente. Operadores reconhecem ou resolvem manualmente com observação, tudo auditado. Toda organização nasce com sete regras padrão editáveis. Detalhes em [docs/alerts-and-incidents.md](docs/alerts-and-incidents.md).
 
+## Como funcionam os incidentes e as manutenções
+
+Quando um recurso é confirmado **Indisponível**, o InfraWatch abre um incidente crítico vinculado ao alerta (um por recurso) e o resolve quando o recurso volta; a equipe também abre incidentes manuais, que só são encerrados por uma pessoa. Cada incidente tem responsável, severidade, comentários, causa e uma timeline que junta o histórico de alterações com as transições reais do recurso. **Manutenções programadas** colocam os recursos em "Em manutenção": as verificações continuam, mas nenhum alerta, incidente ou notificação é gerado; ao encerrar, o estado é recalculado pela próxima verificação. A disponibilidade informa se o tempo em manutenção foi excluído (padrão) ou contado como indisponibilidade.
+
 **Disponibilidade** = tempo disponível ÷ tempo observado com estado conhecido × 100. Sem medições, o painel diz "Sem dados suficientes" em vez de 100%.
 
 ## Métricas de CPU, memória e disco (agente)
@@ -180,7 +186,7 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 - Sessões e rate limit em memória (uma instância). Spring Session/Redis na Fase 5.
 - Sequência de eventos em tempo real é por instância; com várias instâncias será movida para Redis/banco.
 - Métricas de CPU/RAM/disco dependem do agente autorizado; nada é inferido de respostas HTTP. O agente usa APIs da JVM: em Windows não há carga média nem uptime do SO.
-- Disponibilidade ainda não considera janelas de manutenção (Fase 4).
+- MTBF e relatórios por período ainda não existem (Fase 5); o MTTR exibido cobre as últimas 24 h.
 
 ## Roadmap
 
@@ -189,8 +195,8 @@ As capturas do painel serão adicionadas em `docs/screenshots/` na Fase 6 (revis
 | 1 | Fundação e monitoramento HTTP funcional | ✅ concluída |
 | 2 | Agente autorizado: CPU, RAM, disco, uptime, retenção | ✅ concluída |
 | 3 | WebSocket, alertas, severidades, notificações internas | ✅ concluída |
-| 4 | Incidentes, timeline, comentários, manutenções programadas | próxima |
-| 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | |
+| 4 | Incidentes, timeline, comentários, manutenções programadas | ✅ concluída |
+| 5 | Relatórios (MTTR/MTBF), exportações, e-mail/webhooks, membros, auditoria avançada, Prometheus/OTel | próxima |
 | 6 | Testes de concorrência e isolamento, benchmark, revisão de segurança, docs finais, screenshots | |
 
 ---

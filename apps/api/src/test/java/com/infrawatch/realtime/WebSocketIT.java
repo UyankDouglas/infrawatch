@@ -113,25 +113,26 @@ class WebSocketIT {
     }
 
     @Test
-    @DisplayName("cliente autenticado recebe status_changed, check_completed, alert.triggered e notificação do próprio usuário")
+    @DisplayName("cliente autenticado recebe status_changed, check_completed, alert.triggered, incident.created e notificação do próprio usuário")
     void receivesEventsForOwnOrganization() throws Exception {
         Account acc = registerAccount("Org WS");
         UUID rid = createResource(acc, "Serviço WS");
         StompSession session = connect(acc);
         BlockingQueue<String> org = subscribe(session, "/topic/org/" + acc.organizationId());
         BlockingQueue<String> user = subscribe(session, "/user/queue/notifications");
-        Thread.sleep(300);
+        Thread.sleep(1_000); // aguarda o broker registrar as assinaturas
 
         Instant now = Instant.now();
         applier.apply(rid, UUID.randomUUID(), new CheckOutcome(false, 503, 5, "unexpected_status", "503", "127.0.0.1", now, now.plusMillis(5)));
 
         List<String> received = new java.util.ArrayList<>();
-        for (int i = 0; i < 3; i++) {
-            String msg = org.poll(5, TimeUnit.SECONDS);
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (received.size() < 4 && System.currentTimeMillis() < deadline) {
+            String msg = org.poll(1, TimeUnit.SECONDS);
             if (msg != null) received.add(msg);
         }
         List<String> types = received.stream().map(m -> JsonPath.<String>read(m, "$.type")).toList();
-        assertThat(types).contains("resource.status_changed", "resource.check_completed", "alert.triggered");
+        assertThat(types).contains("resource.status_changed", "resource.check_completed", "alert.triggered", "incident.created");
         String statusEvent = received.stream().filter(m -> m.contains("resource.status_changed")).findFirst().orElseThrow();
         assertThat(JsonPath.<String>read(statusEvent, "$.payload.toStatus")).isEqualTo("DOWN");
         assertThat(JsonPath.<String>read(statusEvent, "$.organizationId")).isEqualTo(acc.organizationId().toString());

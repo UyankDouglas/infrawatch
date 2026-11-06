@@ -72,6 +72,7 @@ public class AlertEngine {
     // ------------------------------------------------------------------ transições de estado
 
     @EventListener
+    @org.springframework.core.annotation.Order(10)
     @Transactional(propagation = Propagation.MANDATORY)
     public void onStatusChanged(ResourceStatusChanged e) {
         if (e.to() == ResourceStatus.MAINTENANCE) return; // Fase 4: manutenção suprime alertas
